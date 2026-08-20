@@ -9,7 +9,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Sağlayıcılar | OpenAI, Anthropic, OpenRouter ve Google Gemini için ortak adapter sözleşmesi, anahtar biçiminden algılama, bağlantı doğrulama ve model listesi. Tüm sağlayıcılarda **gerçek streaming** (Anthropic ve Gemini için SSE). |
 | Model yönlendirme | Görevin gereksinimine (`fast`/`reasoning`/`coding`/`vision`) göre yetenek-farkında model seçimi; güvenli varsayılana düşme. |
 | Kimlik bilgileri | Android/iOS’ta `expo-secure-store`; web önizlemesinde yalnızca oturumluk `sessionStorage` geri dönüşü. Anahtarlar olay günlüklerinden ve kalıcı uygulama durumundan ayrıdır. |
-| Agent Runtime | Anlama, planlama, görev grafiği, araştırma, akışla model çıktısı, artifact üretimi ve doğrulama döngüsü; geçici hatalarda backoff’lu yeniden deneme, gerçek durdurma, yarıda kalan çalışmaların kurtarılması. |
+| Agent Runtime | **Otonom agentic döngü**: model araçları (native + MCP) kendisi seçer, sonuçları güvenilmeyen veri olarak gözlemler ve her turda planını günceller (dinamik replanning). İzin askıya alma/devam etme, geçici hatalarda backoff’lu yeniden deneme, gerçek durdurma, adım/araç/hard-cap sınırları ve yarıda kalan çalışmaların kurtarılması. |
 | Maliyet/token | Çalışma başına token toplama ve **tahmini** maliyet (public liste fiyatları, açıkça "tahmini" etiketli). |
 | Yerel çalışma | Workspace, görevler, mesajlar, olaylar, MCP yapılandırması ve artifact metadata’sı AsyncStorage’da; mobil Markdown dosyaları uygulama sandbox’ında tutulur. |
 | Araçlar | Web araştırması, güvenli hesaplama, metin işlemleri ve yalnızca aktif workspace’e Markdown yazma. |

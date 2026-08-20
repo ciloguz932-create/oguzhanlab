@@ -10,6 +10,18 @@ function task(input: Omit<AgentTask, "id" | "createdAt" | "updatedAt" | "status"
 export class Planner {
   private readonly graphManager = new TaskGraphManager();
 
+  /**
+   * Lightweight three-stage outline for the autonomous (agentic) executor. The real
+   * plan is formed dynamically by the model at runtime; these stages give the UI a
+   * stable, honest progress skeleton (understand → act with tools → produce & verify).
+   */
+  createOutline(instruction: string): TaskGraph {
+    const understand = task({ title: "Hedefi anla ve planla", kind: "analysis", priority: 1, dependencies: [], toolRequirements: [], input: instruction });
+    const act = task({ title: "Araçları kullanarak yürüt", kind: "research", priority: 2, dependencies: [understand.id], toolRequirements: [], input: instruction });
+    const produce = task({ title: "Yanıtı üret ve doğrula", kind: "generation", priority: 3, dependencies: [act.id], modelRequirement: "reasoning", toolRequirements: [], input: instruction });
+    return this.graphManager.create([understand, act, produce]);
+  }
+
   createPlan(instruction: string): TaskGraph {
     const normalized = instruction.toLocaleLowerCase("tr-TR");
     const needsResearch = /(araştır|internette|kaynak|search|research|web|karşılaştır)/.test(normalized);

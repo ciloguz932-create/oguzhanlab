@@ -149,6 +149,11 @@ export interface AgentRun {
   error?: string;
   artifactIds: string[];
   usage?: RunUsage;
+  // Agentic-loop state persisted for permission suspend/resume and restart recovery.
+  transcript?: ProviderMessage[];
+  pendingToolCall?: { toolId: string; args: Record<string, unknown>; reason: string };
+  steps?: number;
+  toolCalls?: number;
 }
 
 export interface ToolDefinition {

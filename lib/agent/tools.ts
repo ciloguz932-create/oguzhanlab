@@ -86,3 +86,10 @@ export function makeArtifactName(instruction: string): string {
   const tokens = instruction.split(/\s+/).slice(0, 5).join("-");
   return sanitizeFileName(tokens || "agent-output", "agent-output.md").replace(/\.(?!md$)[^.]+$/, "") + ".md";
 }
+
+/** Local, side-effect-free text utility used by the `text.transform` native tool. */
+export function sanitizeTextTransform(text: string): { title: string; filename: string } {
+  const clean = text.trim().replace(/\s+/g, " ").slice(0, 120);
+  const title = clean ? clean[0].toUpperCase() + clean.slice(1) : "Başlıksız";
+  return { title, filename: makeArtifactName(text) };
+}

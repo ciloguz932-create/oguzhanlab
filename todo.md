@@ -22,8 +22,17 @@
 - [x] MCP tools/call gerçek çağrısı, SSE yanıt işleme ve keşif sonrası kalıcı registry
 - [x] ARCHITECTURE.md, SECURITY.md, MCP.md belgelerini gerçek uygulamayla hizalamak
 
+## Phase 2 — Dinamik replanning + otonom MCP
+- [x] Otonom agentic döngü (ReAct): model araçları kendisi seçer, gözlemler, yeniden planlar
+- [x] MCP araçlarının native araçlarla aynı katalogda otonom seçimi ve `tools/call` yürütmesi
+- [x] İzin askıya alma/devam etme (allow/deny/resume) ve reddedince araçsız uyarlanma
+- [x] Adım/araç/hard-cap sınırlarıyla sonsuz döngü koruması
+- [x] Orchestrator birim testleri (10 test)
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Gözlem→değerlendir→yeniden planla (dinamik replanning) döngüsü
-- [ ] LLM güdümlü otonom MCP tool seçimi
+- [ ] Phase 3: Skill/capability paketleri
+- [ ] Phase 4: Email/Research/GitHub/Drive araç entegrasyonları
+- [ ] Phase 5: Sub-agent'lar
+- [ ] Phase 6: Arka plan yürütme
+- [ ] Phase 7: Tarayıcı ajanı
 - [ ] MCP OAuth 2.1/PKCE tarayıcı dönüş akışı ve token yenileme
-- [ ] Sub-agent'lar, arka plan yürütme, tarayıcı otomasyonu, yerel model inference

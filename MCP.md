@@ -39,9 +39,9 @@ Keşfedilen araçlar uygulama durumunda saklanır ve **yeniden başlatmada** in-
 - Araç adları, açıklamaları ve sonuçları **güvenilmeyen veri**dir; asla sistem talimatı olarak yorumlanmaz (tool poisoning / prompt injection koruması — `SECURITY.md`).
 - Tool çalıştırma kullanıcı tetiklidir; MCP sunucusu kullanıcı workspace'ine otomatik/sınırsız erişim kazanmaz.
 
-## Şu anki sınır: otonom seçim
+## Otonom seçim (Phase 2 — uygulandı)
 
-Bu sürümde MCP araçları kullanıcı tarafından (MCP ekranından) çağrılır. Agent'ın planlama sırasında MCP araçlarını **otonom** seçmesi planlıdır ve ToolRegistry zaten native + MCP araçlarını tek yerde topladığı için çekirdek değişikliği gerektirmez.
+Keşfedilen MCP araçları native araçlarla **aynı katalogda** agent'a sunulur. Otonom agentic döngü (`orchestrator.ts`) sırasında model, hedefe uygun MCP aracını kendisi seçip çağırabilir; sonuç güvenilmeyen veri olarak transcripte eklenir ve model planını buna göre günceller. MCP ekranından manuel `tools/call` testi de mevcuttur.
 
 ## Referanslar
 
