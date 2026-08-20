@@ -2,7 +2,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
+import { recoverInterruptedRuns } from "./recovery";
 import type { AppState, CredentialMetadata } from "./types";
+
+export { recoverInterruptedRuns } from "./recovery";
 
 const STATE_KEY = "oguzhanlab.agent.state.v1";
 const CREDENTIAL_INDEX_KEY = "oguzhanlab.agent.credentials.v1";
@@ -33,7 +36,7 @@ export class LocalStateRepository {
     const raw = await AsyncStorage.getItem(STATE_KEY);
     if (!raw) return initialAppState();
     try {
-      return { ...initialAppState(), ...JSON.parse(raw) } as AppState;
+      return recoverInterruptedRuns({ ...initialAppState(), ...JSON.parse(raw) } as AppState);
     } catch {
       return initialAppState();
     }

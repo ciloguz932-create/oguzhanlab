@@ -129,6 +129,13 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export interface RunUsage {
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  hasCost: boolean;
+}
+
 export interface AgentRun {
   id: string;
   workspaceId: string;
@@ -136,10 +143,12 @@ export interface AgentRun {
   graph: TaskGraph;
   status: RunStatus;
   selectedConnectionId?: string;
+  selectedModel?: string;
   startedAt: string;
   completedAt?: string;
   error?: string;
   artifactIds: string[];
+  usage?: RunUsage;
 }
 
 export interface ToolDefinition {

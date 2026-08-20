@@ -1,4 +1,5 @@
-import { assertSafeRemoteUrl, sanitizeFileName, safeErrorMessage } from "./security";
+import { AgentError, httpError } from "./errors";
+import { assertSafeRemoteUrl, sanitizeFileName } from "./security";
 import type { ToolDefinition, ToolResult } from "./types";
 
 export const nativeTools: ToolDefinition[] = [
@@ -64,20 +65,21 @@ export function safeCalculate(expression: string): number {
   return stack[0];
 }
 
-export async function executeWebSearch(query: string): Promise<ToolResult> {
-  try {
-    if (!query.trim()) throw new Error("Arama sorgusu boş olamaz.");
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query.slice(0, 300))}&format=json&no_html=1&skip_disambig=1`;
-    assertSafeRemoteUrl(url);
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error("Arama hizmeti yanıt vermedi.");
-    const data = (await response.json()) as { AbstractText?: string; AbstractURL?: string; RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string; FirstURL?: string }> }> };
-    const sources = (data.RelatedTopics ?? []).flatMap((item) => item.Topics ?? [item]).filter((item) => item.Text && item.FirstURL).slice(0, 8).map((item) => `- ${item.Text}\n  ${item.FirstURL}`);
-    const content = [data.AbstractText ? `Özet: ${data.AbstractText}${data.AbstractURL ? `\nKaynak: ${data.AbstractURL}` : ""}` : "", ...sources].filter(Boolean).join("\n\n");
-    return { ok: true, content: content || "Arama tamamlandı; sınırlı yapılandırılmış sonuç döndü.", metadata: { sourceCount: sources.length } };
-  } catch (error) {
-    return { ok: false, content: "", error: safeErrorMessage(error) };
-  }
+/**
+ * Runs a read-only open-web lookup via the DuckDuckGo Instant Answer API. Throws
+ * on transport/HTTP failure (so callers can classify + retry transient errors) and
+ * returns a successful ToolResult even when the structured answer is sparse.
+ */
+export async function executeWebSearch(query: string, signal?: AbortSignal): Promise<ToolResult> {
+  if (!query.trim()) throw new AgentError("Arama sorgusu boş olamaz.", "client", { retryable: false });
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query.slice(0, 300))}&format=json&no_html=1&skip_disambig=1`;
+  assertSafeRemoteUrl(url);
+  const response = await fetch(url, { headers: { Accept: "application/json" }, signal });
+  if (!response.ok) throw httpError(response.status);
+  const data = (await response.json()) as { AbstractText?: string; AbstractURL?: string; RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string; FirstURL?: string }> }> };
+  const sources = (data.RelatedTopics ?? []).flatMap((item) => item.Topics ?? [item]).filter((item) => item.Text && item.FirstURL).slice(0, 8).map((item) => `- ${item.Text}\n  ${item.FirstURL}`);
+  const content = [data.AbstractText ? `Özet: ${data.AbstractText}${data.AbstractURL ? `\nKaynak: ${data.AbstractURL}` : ""}` : "", ...sources].filter(Boolean).join("\n\n");
+  return { ok: true, content: content || "Arama tamamlandı; sınırlı yapılandırılmış sonuç döndü.", metadata: { sourceCount: sources.length } };
 }
 
 export function makeArtifactName(instruction: string): string {
