@@ -13,5 +13,17 @@
 - [x] Unit testleri, type-check, lint, build ve güvenlik kontrollerini çalıştırmak
 - [x] README ve environment örneğini hazırlamak
 - [x] Tamamlanan projeyi seçili GitHub deposuna aktarmak
-- [ ] MCP OAuth 2.1/PKCE tarayıcı dönüş akışını ve token yenilemeyi eklemek
 - [x] Sürüm kaydını engelleyen mobil simge varlıklarını optimize etmek
+- [x] Anthropic gerçek SSE streaming ve Google Gemini adapter'ı eklemek
+- [x] Yetenek-farkında model router (task.modelRequirement) eklemek
+- [x] Token/maliyet toplama ve UI'da tahmini maliyet göstermek
+- [x] Yapısal hata sınıflandırma, backoff'lu yeniden deneme ve döngü/adım sınırları
+- [x] Yeniden başlatmada yarıda kalan çalışmaların kurtarılması
+- [x] MCP tools/call gerçek çağrısı, SSE yanıt işleme ve keşif sonrası kalıcı registry
+- [x] ARCHITECTURE.md, SECURITY.md, MCP.md belgelerini gerçek uygulamayla hizalamak
+
+## Sonraki adımlar (planlı — uydurulmadı)
+- [ ] Gözlem→değerlendir→yeniden planla (dinamik replanning) döngüsü
+- [ ] LLM güdümlü otonom MCP tool seçimi
+- [ ] MCP OAuth 2.1/PKCE tarayıcı dönüş akışı ve token yenileme
+- [ ] Sub-agent'lar, arka plan yürütme, tarayıcı otomasyonu, yerel model inference

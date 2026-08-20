@@ -6,13 +6,17 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 
 | Alan | Uygulanan davranış |
 |---|---|
-| Sağlayıcılar | OpenAI, Anthropic ve OpenRouter için ortak adapter sözleşmesi, anahtar biçiminden algılama, bağlantı doğrulama ve model listesi. |
+| Sağlayıcılar | OpenAI, Anthropic, OpenRouter ve Google Gemini için ortak adapter sözleşmesi, anahtar biçiminden algılama, bağlantı doğrulama ve model listesi. Tüm sağlayıcılarda **gerçek streaming** (Anthropic ve Gemini için SSE). |
+| Model yönlendirme | Görevin gereksinimine (`fast`/`reasoning`/`coding`/`vision`) göre yetenek-farkında model seçimi; güvenli varsayılana düşme. |
 | Kimlik bilgileri | Android/iOS’ta `expo-secure-store`; web önizlemesinde yalnızca oturumluk `sessionStorage` geri dönüşü. Anahtarlar olay günlüklerinden ve kalıcı uygulama durumundan ayrıdır. |
-| Agent Runtime | Anlama, planlama, görev grafiği, araştırma, akışla model çıktısı, artifact üretimi ve doğrulama döngüsü. |
+| Agent Runtime | Anlama, planlama, görev grafiği, araştırma, akışla model çıktısı, artifact üretimi ve doğrulama döngüsü; geçici hatalarda backoff’lu yeniden deneme, gerçek durdurma, yarıda kalan çalışmaların kurtarılması. |
+| Maliyet/token | Çalışma başına token toplama ve **tahmini** maliyet (public liste fiyatları, açıkça "tahmini" etiketli). |
 | Yerel çalışma | Workspace, görevler, mesajlar, olaylar, MCP yapılandırması ve artifact metadata’sı AsyncStorage’da; mobil Markdown dosyaları uygulama sandbox’ında tutulur. |
 | Araçlar | Web araştırması, güvenli hesaplama, metin işlemleri ve yalnızca aktif workspace’e Markdown yazma. |
 | Güvenlik | Prompt/tool çıktıları güvenilmeyen veri olarak ele alınır; secret redaction, URL/özel ağ kısıtlaması, dosya adı sanitizasyonu ve risk tabanlı izin kapısı kullanılır. |
-| MCP | HTTPS Streamable HTTP ile `tools/list` keşfi; açık veya Bearer token korumalı sunucular için araçların merkezi registry’ye alınması. |
+| MCP | HTTPS Streamable HTTP ile `tools/list` keşfi ve `tools/call` **gerçek çağrısı**; açık veya Bearer token korumalı sunucular için araçların merkezi registry’ye alınması; JSON + SSE yanıt desteği. |
+
+Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md)
 
 > Web önizlemesi, tarayıcının güvenli depolama modelinden dolayı mobil secure storage ile aynı güvenlik garantisini vermez. Üretim anahtarlarını yalnızca Android/iOS uygulamasında saklayın.
 
