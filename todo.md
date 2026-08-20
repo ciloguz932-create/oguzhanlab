@@ -12,6 +12,6 @@
 - [x] Connect AI, ana alan, agent, projeler, görevler, dosyalar ve ayarlar ekranlarını geliştirmek
 - [x] Unit testleri, type-check, lint, build ve güvenlik kontrollerini çalıştırmak
 - [x] README ve environment örneğini hazırlamak
-- [ ] Tamamlanan projeyi seçili GitHub deposuna aktarmak
+- [x] Tamamlanan projeyi seçili GitHub deposuna aktarmak
 - [ ] MCP OAuth 2.1/PKCE tarayıcı dönüş akışını ve token yenilemeyi eklemek
 - [x] Sürüm kaydını engelleyen mobil simge varlıklarını optimize etmek
