@@ -108,7 +108,7 @@ describe("provider detection incl. gemini", () => {
 describe("interrupted run recovery", () => {
   it("marks in-flight runs recoverable and preserves completed work", () => {
     const base: AppState = {
-      version: 1, initialized: true, workspaces: [], connections: [], messages: [], events: [], artifacts: [], mcpServers: [],
+      version: 1, initialized: true, workspaces: [], connections: [], messages: [], events: [], artifacts: [], mcpServers: [], skills: [],
       permissionPolicies: {}, offlineMode: false, debugMode: false,
       runs: [{
         id: "run1", workspaceId: "w1", instruction: "x", status: "running", startedAt: "t", artifactIds: [],

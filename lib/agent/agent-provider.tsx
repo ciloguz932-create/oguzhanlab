@@ -8,10 +8,11 @@ import { type AgentTool, DEFAULT_LIMITS, type PendingToolCall, type PermissionGa
 import { Planner } from "./planner";
 import { ProviderRegistry } from "./providers";
 import { assertSafeRemoteUrl, makeId, safeErrorMessage } from "./security";
+import { makeCustomSkill, selectSkills, skillModelRequirement } from "./skills";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
 import { executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
 import { addUsage, emptyTotals, estimateCostUsd } from "./usage";
-import type { ActivityEvent, AgentRun, AgentTask, AppState, Artifact, ChatMessage, McpAuthType, McpServerConfig, PermissionDecision, PermissionRequest, ProviderConnection, ProviderId, ProviderMessage, ProviderUsage, RunStatus, TaskGraph, TaskKind, TaskStatus, ToolResult, Workspace } from "./types";
+import type { ActivityEvent, AgentRun, AgentTask, AppState, Artifact, ChatMessage, McpAuthType, McpServerConfig, ModelRequirement, PermissionDecision, PermissionRequest, ProviderConnection, ProviderId, ProviderMessage, ProviderUsage, RunStatus, Skill, TaskGraph, TaskKind, TaskStatus, ToolResult, Workspace } from "./types";
 
 // Safety bounds so a run can never spend unboundedly or loop forever.
 const MAX_TRANSIENT_RETRIES = 2;
@@ -50,6 +51,9 @@ interface AgentContextValue {
   discoverMcpTools: (serverId: string) => Promise<void>;
   invokeMcpTool: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<ToolResult>;
   removeMcpServer: (serverId: string) => Promise<void>;
+  setSkillEnabled: (skillId: string, enabled: boolean) => void;
+  addSkill: (input: { name: string; description?: string; instructions: string; keywords?: string[]; toolRequirements?: string[]; modelRequirement?: ModelRequirement }) => Skill;
+  removeSkill: (skillId: string) => void;
   readArtifact: (artifact: Artifact) => Promise<string>;
   clearLocalData: () => Promise<void>;
 }
@@ -224,7 +228,10 @@ export function AgentProvider({ children }: PropsWithChildren) {
     setRunStatus(runId, "running");
 
     const workspaceId = run.workspaceId;
-    const model = selectModel(connection.models, "reasoning", connection.defaultModel);
+    // Resolve the skills selected for this run; they inject expert instructions and can bias routing.
+    const activeSkills = (run.activeSkillIds ?? []).map((id) => stateRef.current.skills.find((skill) => skill.id === id)).filter((skill): skill is Skill => Boolean(skill));
+    const requirement: ModelRequirement = skillModelRequirement(activeSkills) ?? "reasoning";
+    const model = selectModel(connection.models, requirement, connection.defaultModel);
     if (model !== run.selectedModel) updateRun(runId, { selectedModel: model });
 
     // One reasoning turn: retried fully because a non-streaming model call has no side effects.
@@ -300,7 +307,8 @@ export function AgentProvider({ children }: PropsWithChildren) {
     try {
       const resume = run.transcript?.length ? { transcript: run.transcript, approved: run.pendingToolCall, steps: run.steps ?? 0, toolCalls: run.toolCalls ?? 0 } : undefined;
       if (resume) updateRun(runId, { pendingToolCall: undefined });
-      const outcome = await runAgentLoop(deps, { goal: run.instruction, tools: buildCatalog(), limits: DEFAULT_LIMITS, signal: controller.signal, resume });
+      const skills = activeSkills.map((skill) => ({ name: skill.name, instructions: skill.instructions }));
+      const outcome = await runAgentLoop(deps, { goal: run.instruction, tools: buildCatalog(), skills, limits: DEFAULT_LIMITS, signal: controller.signal, resume });
 
       if (outcome.status === "waiting_for_permission") {
         const definition = tools.get(outcome.pending.toolId);
@@ -355,10 +363,13 @@ export function AgentProvider({ children }: PropsWithChildren) {
     }
     const graph = planner.createOutline(text);
     const connection = stateRef.current.connections.find((item) => item.status === "connected");
-    const run: AgentRun = { id: makeId("run"), workspaceId: workspace.id, instruction: text, graph, status: "planning", selectedConnectionId: connection?.id, startedAt: now(), artifactIds: [] };
+    // Auto-select the most relevant enabled skills for this goal.
+    const activeSkills = selectSkills(stateRef.current.skills, text);
+    const run: AgentRun = { id: makeId("run"), workspaceId: workspace.id, instruction: text, graph, status: "planning", selectedConnectionId: connection?.id, activeSkillIds: activeSkills.map((skill) => skill.id), startedAt: now(), artifactIds: [] };
     apply((current) => ({ ...current, runs: [...current.runs, run], workspaces: current.workspaces.map((item) => item.id === workspace!.id ? { ...item, updatedAt: now(), taskIds: [...item.taskIds, ...graph.tasks.map((task) => task.id)] } : item) }));
     addMessage({ workspaceId: workspace.id, runId: run.id, role: "user", content: text, status: "complete" });
     addEvent({ runId: run.id, type: "AgentStarted", summary: "Agent hedefi alındı.", level: "info" });
+    if (activeSkills.length) addEvent({ runId: run.id, type: "PlanCreated", summary: `Yetenekler etkin: ${activeSkills.map((skill) => skill.name).join(", ")}.`, level: "info" });
     void executeRun(run.id);
   }, [addEvent, addMessage, apply, executeRun, planner]);
 
@@ -437,6 +448,21 @@ export function AgentProvider({ children }: PropsWithChildren) {
     apply((current) => ({ ...current, mcpServers: current.mcpServers.filter((item) => item.id !== serverId) }));
   }, [apply, credentials]);
 
+  const setSkillEnabled = useCallback((skillId: string, enabled: boolean) => {
+    apply((current) => ({ ...current, skills: current.skills.map((skill) => (skill.id === skillId ? { ...skill, enabled } : skill)) }));
+  }, [apply]);
+
+  const addSkill = useCallback((input: { name: string; description?: string; instructions: string; keywords?: string[]; toolRequirements?: string[]; modelRequirement?: ModelRequirement }): Skill => {
+    const skill = makeCustomSkill(input);
+    apply((current) => ({ ...current, skills: [...current.skills, skill] }));
+    return skill;
+  }, [apply]);
+
+  const removeSkill = useCallback((skillId: string) => {
+    // Built-in skills can be disabled but not deleted, so they can always return.
+    apply((current) => ({ ...current, skills: current.skills.filter((skill) => skill.id !== skillId || skill.builtin) }));
+  }, [apply]);
+
   const clearLocalData = useCallback(async () => {
     const credentialIndex = await credentials.listCredentials();
     await Promise.all(credentialIndex.map((item) => credentials.deleteCredential(item.id)));
@@ -447,7 +473,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, [credentials, repository]);
 
   const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId);
-  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, artifacts, cancelRun, clearLocalData, connect, createWorkspace, disconnect, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setOfflineMode, state, submitInstruction]);
+  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, createWorkspace, disconnect, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setOfflineMode, setSkillEnabled, state, submitInstruction]);
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
 }
 

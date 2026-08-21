@@ -65,8 +65,13 @@ export type AgentOutcome =
   | { status: "waiting_for_permission"; pending: PendingToolCall; transcript: ProviderMessage[]; steps: number; toolCalls: number }
   | { status: "failed"; error: string; transcript: ProviderMessage[]; steps: number; toolCalls: number };
 
-const SYSTEM_PROMPT = (tools: AgentTool[]) => `Sen OguzhanLab içinde çalışan otonom bir AI agent'ısın. Bir hedefi; araçları planlayıp çağırarak, sonuçları gözlemleyip gerektiğinde planını güncelleyerek adım adım tamamlarsın.
+export interface ActiveSkill {
+  name: string;
+  instructions: string;
+}
 
+const SYSTEM_PROMPT = (tools: AgentTool[], skills: ActiveSkill[]) => `Sen OguzhanLab içinde çalışan otonom bir AI agent'ısın. Bir hedefi; araçları planlayıp çağırarak, sonuçları gözlemleyip gerektiğinde planını güncelleyerek adım adım tamamlarsın.
+${skills.length ? `\nAKTİF YETENEKLER (bu göreve uygun uzmanlık talimatları — bunlara uy):\n${skills.map((skill) => `### ${skill.name}\n${skill.instructions}`).join("\n\n")}\n` : ""}
 KULLANILABİLİR ARAÇLAR:
 ${tools.length ? tools.map((tool) => `- ${tool.id}: ${tool.description} | args şeması: ${JSON.stringify(tool.inputSchema)}`).join("\n") : "(araç yok)"}
 
@@ -135,6 +140,7 @@ function observation(text: string): ProviderMessage {
 interface RunInput {
   goal: string;
   tools: AgentTool[];
+  skills?: ActiveSkill[];
   limits?: OrchestratorLimits;
   signal: AbortSignal;
   /**
@@ -173,12 +179,13 @@ export async function runAgentLoop(deps: OrchestratorDeps, input: RunInput): Pro
     }
   } else {
     messages = [
-      { role: "system", content: SYSTEM_PROMPT(input.tools) },
+      { role: "system", content: SYSTEM_PROMPT(input.tools, input.skills ?? []) },
       { role: "user", content: `Hedef:\n${input.goal}` },
     ];
     steps = 0;
     toolCalls = 0;
-    deps.emit({ type: "PlanCreated", summary: `Otonom yürütme başladı (${input.tools.length} araç mevcut).`, level: "info" });
+    const skillNote = input.skills?.length ? ` · ${input.skills.length} yetenek aktif` : "";
+    deps.emit({ type: "PlanCreated", summary: `Otonom yürütme başladı (${input.tools.length} araç mevcut${skillNote}).`, level: "info" });
   }
 
   // Absolute ceiling so the loop always terminates even if the model refuses to

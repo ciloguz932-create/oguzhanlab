@@ -1,6 +1,6 @@
-import type { ProviderModel } from "./types";
+import type { ModelRequirement, ProviderModel } from "./types";
 
-export type ModelRequirement = "fast" | "reasoning" | "coding" | "vision";
+export type { ModelRequirement } from "./types";
 
 export interface ModelTrait {
   fast: boolean;

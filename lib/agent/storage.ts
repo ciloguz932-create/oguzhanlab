@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
 import { recoverInterruptedRuns } from "./recovery";
+import { mergeBuiltInSkills, seedSkills } from "./skills";
 import type { AppState, CredentialMetadata } from "./types";
 
 export { recoverInterruptedRuns } from "./recovery";
@@ -21,6 +22,7 @@ export const initialAppState = (): AppState => ({
   events: [],
   artifacts: [],
   mcpServers: [],
+  skills: seedSkills(),
   permissionPolicies: {
     "global:filesystem.writeMarkdown": "allow",
     "global:text.transform": "allow",
@@ -36,7 +38,10 @@ export class LocalStateRepository {
     const raw = await AsyncStorage.getItem(STATE_KEY);
     if (!raw) return initialAppState();
     try {
-      return recoverInterruptedRuns({ ...initialAppState(), ...JSON.parse(raw) } as AppState);
+      const merged = { ...initialAppState(), ...JSON.parse(raw) } as AppState;
+      // Surface any newly shipped built-in skills while preserving user choices.
+      merged.skills = mergeBuiltInSkills(merged.skills ?? []);
+      return recoverInterruptedRuns(merged);
     } catch {
       return initialAppState();
     }

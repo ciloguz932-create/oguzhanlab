@@ -42,7 +42,8 @@ Katmanlar tek yönde bağımlıdır: UI yalnızca `AgentProvider`'ı bilir; runt
 | `lib/agent/types.ts` | Tüm domain sözleşmeleri (tek kaynak). |
 | `lib/agent/providers.ts` | OpenAI, OpenRouter (OpenAI-uyumlu), Anthropic ve Gemini adapter'ları; anahtar algılama, model listesi, `generate`, gerçek SSE `stream`. |
 | `lib/agent/model-router.ts` | `task.modelRequirement` + yetenek sezgisiyle model seçimi; her zaman güvenli varsayılana düşer. |
-| `lib/agent/orchestrator.ts` | **Otonom agentic döngü** (ReAct): model araçları (native + MCP) kendisi seçer, sonuçları güvenilmeyen veri olarak gözlemler, her turda planını günceller; adım/araç sınırlarıyla sınırlıdır. Saf ve DI'lı — test edilebilir. |
+| `lib/agent/orchestrator.ts` | **Otonom agentic döngü** (ReAct): model araçları (native + MCP) kendisi seçer, sonuçları güvenilmeyen veri olarak gözlemler, her turda planını günceller; adım/araç sınırlarıyla sınırlıdır. Aktif yetenek talimatlarını sistem istemine enjekte eder. Saf ve DI'lı — test edilebilir. |
+| `lib/agent/skills.ts` | **Yetenek (Skill) sistemi**: yeniden kullanılabilir uzmanlık paketleri (talimat + tetikleyici kelimeler + araç/model tercihi). Yerleşik yetenekler + kullanıcı tanımlı özel yetenekler; hedefe göre otomatik seçim (`selectSkills`). Saf ve test edilebilir. |
 | `lib/agent/planner.ts` | Agentic yürütme için hafif üç aşamalı iskelet (`createOutline`) ve geriye dönük statik plan (`createPlan`). |
 | `lib/agent/task-graph.ts` | DAG doğrulama, topolojik sıralama, döngü tespiti, hazır görev seçimi. |
 | `lib/agent/tools.ts` | Native tool registry; güvenli hesap makinesi; read-only web araştırması; artifact adı üretimi. |
@@ -57,8 +58,8 @@ Katmanlar tek yönde bağımlıdır: UI yalnızca `AgentProvider`'ı bilir; runt
 
 ## Yürütme yaşam döngüsü (otonom / agentic)
 
-1. Kullanıcı hedef girer → `submitInstruction`; `Planner.createOutline` üç aşamalı iskelet üretir (anla → araçlarla yürüt → üret & doğrula).
-2. `executeRun`, `ToolRegistry`'den araç kataloğunu (native + MCP; çevrimdışında ağ araçları hariç) toplar ve `runAgentLoop`'u başlatır.
+1. Kullanıcı hedef girer → `submitInstruction`; `Planner.createOutline` üç aşamalı iskelet üretir (anla → araçlarla yürüt → üret & doğrula). `selectSkills` hedefe uygun etkin yetenekleri seçer ve çalışmaya iliştirir.
+2. `executeRun`, `ToolRegistry`'den araç kataloğunu (native + MCP; çevrimdışında ağ araçları hariç) toplar; aktif yeteneklerin talimatlarını ve model tercihini (`skillModelRequirement`) uygular ve `runAgentLoop`'u başlatır.
 3. Döngü her turda:
    - Model bir JSON kararı üretir: **tool** (araç çağır) veya **final** (bitir).
    - **tool** → izin kapısı (`allow`/`deny`/`ask`). `ask` ise çalışma askıya alınır, transcript kalıcı hale gelir; kullanıcı kararından sonra kaldığı yerden **devam eder** (resume). `allow` → araç çalışır (native dispatch veya MCP `tools/call`); sonuç "güvenilmeyen veri" etiketiyle transcripte eklenir.
@@ -75,15 +76,16 @@ Tüm uygulama durumu (`AppState`) AsyncStorage'da saklanır; kimlik bilgileri ay
 
 `SECURITY.md`'ye bakın. Özet: dış içerik (web, MCP, tool çıktısı) daima veri; risk tabanlı izin kapısı; secret redaction; SSRF koruması.
 
-## Uygulandı (Phase 2)
+## Uygulandı (Phase 2–3)
 
 - **Dinamik replanning**: model her araç gözleminden sonra planını günceller (`orchestrator.ts`).
 - **Otonom MCP tool seçimi**: MCP araçları native araçlarla aynı katalogda; agent bunları planlama sırasında kendisi seçip çağırır.
+- **Yetenek (Skill) sistemi**: hedefe göre otomatik seçilen, sistem istemine talimat enjekte eden ve model tercihini biçimlendiren yeniden kullanılabilir uzmanlık paketleri; yerleşik + kullanıcı tanımlı, Yetenekler ekranından yönetilir (`skills.ts`).
 
 ## Planlı (henüz uygulanmadı — uydurulmadı)
 
 - MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme.
 - Sub-agent'lar, arka plan yürütme, tarayıcı otomasyonu, yerel model inference.
-- Skill/capability paketleri (Phase 3+).
+- Harici servis entegrasyonları (Email/GitHub/Drive vb.) MCP veya native tool olarak (Phase 4).
 
 Bu yetenekler için sözleşmeler (`ProviderAdapter`, `ToolRegistry`, `McpAuthType`) hazırdır; eklenmeleri çekirdeği yeniden yazmayı gerektirmez.

@@ -29,8 +29,14 @@
 - [x] Adım/araç/hard-cap sınırlarıyla sonsuz döngü koruması
 - [x] Orchestrator birim testleri (10 test)
 
+## Phase 3 — Yetenekler / Capabilities
+- [x] Yeniden kullanılabilir Skill modeli (talimat + tetikleyici kelimeler + araç/model tercihi)
+- [x] Yerleşik yetenekler: Derin Araştırma, Doküman Yazarı, Çalışma Planlayıcı, Veri Analisti
+- [x] Hedefe göre otomatik yetenek seçimi ve sistem istemine talimat enjeksiyonu
+- [x] Kullanıcı tanımlı özel yetenek ekleme/silme, etkinleştirme/devre dışı bırakma (Yetenekler ekranı)
+- [x] Yetenek birim testleri (8 test)
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 3: Skill/capability paketleri
 - [ ] Phase 4: Email/Research/GitHub/Drive araç entegrasyonları
 - [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme

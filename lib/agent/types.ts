@@ -14,6 +14,7 @@ export type TaskStatus =
   | "blocked";
 export type TaskKind = "analysis" | "research" | "generation" | "artifact" | "verification";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
+export type ModelRequirement = "fast" | "reasoning" | "coding" | "vision";
 export type PermissionDecision = "ask" | "allow" | "deny";
 export type RunStatus = "idle" | "planning" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled";
 export type ArtifactKind = "markdown" | "text" | "json" | "code" | "report";
@@ -65,7 +66,7 @@ export interface AgentTask {
   priority: number;
   dependencies: string[];
   toolRequirements: string[];
-  modelRequirement?: "fast" | "reasoning" | "coding" | "vision";
+  modelRequirement?: ModelRequirement;
   input: string;
   output?: string;
   error?: string;
@@ -129,6 +130,18 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  keywords: string[];
+  toolRequirements: string[];
+  modelRequirement?: ModelRequirement;
+  builtin: boolean;
+  enabled: boolean;
+}
+
 export interface RunUsage {
   inputTokens: number;
   outputTokens: number;
@@ -144,6 +157,7 @@ export interface AgentRun {
   status: RunStatus;
   selectedConnectionId?: string;
   selectedModel?: string;
+  activeSkillIds?: string[];
   startedAt: string;
   completedAt?: string;
   error?: string;
@@ -209,6 +223,7 @@ export interface AppState {
   events: ActivityEvent[];
   artifacts: Artifact[];
   mcpServers: McpServerConfig[];
+  skills: Skill[];
   permissionPolicies: Record<string, PermissionDecision>;
   pendingPermission?: PermissionRequest;
   offlineMode: boolean;
