@@ -16,6 +16,7 @@ function RootNavigator() {
     <Stack.Screen name="providers" options={{ title: "AI Sağlayıcıları" }} />
     <Stack.Screen name="mcp" options={{ title: "MCP Sunucuları" }} />
     <Stack.Screen name="skills" options={{ title: "Yetenekler" }} />
+    <Stack.Screen name="integrations" options={{ title: "Entegrasyonlar" }} />
   </Stack>;
 }
 

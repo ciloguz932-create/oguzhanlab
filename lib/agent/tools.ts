@@ -4,6 +4,7 @@ import type { ToolDefinition, ToolResult } from "./types";
 
 export const nativeTools: ToolDefinition[] = [
   { id: "web.search", title: "Web araştırması", description: "Açık webde başlangıç kaynağı arar.", source: "native", risk: "medium", inputSchema: { query: "string" } },
+  { id: "web.fetch", title: "Web sayfası getir", description: "Bir HTTPS URL'sini getirir ve okunabilir metne dönüştürür.", source: "native", risk: "medium", inputSchema: { url: "string" } },
   { id: "text.transform", title: "Metin işleme", description: "Yerel metni başlık ve dosya adına dönüştürür.", source: "native", risk: "low", inputSchema: { text: "string" } },
   { id: "calculator.evaluate", title: "Hesap makinesi", description: "Kısıtlı aritmetik ifadeyi yerelde hesaplar.", source: "native", risk: "low", inputSchema: { expression: "string" } },
   { id: "filesystem.writeMarkdown", title: "Markdown dosyası yaz", description: "Workspace içinde güvenli Markdown artifact’i üretir.", source: "native", risk: "medium", inputSchema: { filename: "string", content: "string" } },
@@ -80,6 +81,41 @@ export async function executeWebSearch(query: string, signal?: AbortSignal): Pro
   const sources = (data.RelatedTopics ?? []).flatMap((item) => item.Topics ?? [item]).filter((item) => item.Text && item.FirstURL).slice(0, 8).map((item) => `- ${item.Text}\n  ${item.FirstURL}`);
   const content = [data.AbstractText ? `Özet: ${data.AbstractText}${data.AbstractURL ? `\nKaynak: ${data.AbstractURL}` : ""}` : "", ...sources].filter(Boolean).join("\n\n");
   return { ok: true, content: content || "Arama tamamlandı; sınırlı yapılandırılmış sonuç döndü.", metadata: { sourceCount: sources.length } };
+}
+
+/** Converts an HTML document to readable plain text: drops scripts/styles, strips tags, decodes common entities. */
+export function htmlToText(html: string): string {
+  const withoutBlocks = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ");
+  const withBreaks = withoutBlocks
+    .replace(/<\/(p|div|h[1-6]|li|tr|section|article|header|footer)>/gi, "\n")
+    .replace(/<br\s*\/?>(?!\n)/gi, "\n");
+  const text = withBreaks.replace(/<[^>]+>/g, " ");
+  const decoded = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)));
+  return decoded.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").split("\n").map((line) => line.trim()).join("\n").trim();
+}
+
+/**
+ * Fetches an open-web page over HTTPS and returns readable text. SSRF-guarded via
+ * assertSafeRemoteUrl; throws on transport/HTTP failure so callers can retry transient errors.
+ */
+export async function executeWebFetch(rawUrl: string, signal?: AbortSignal): Promise<ToolResult> {
+  const url = assertSafeRemoteUrl(rawUrl.trim());
+  const response = await fetch(url.toString(), { headers: { Accept: "text/html,application/xhtml+xml,text/plain" }, signal });
+  if (!response.ok) throw httpError(response.status);
+  const raw = (await response.text()).slice(0, 400_000);
+  const contentType = response.headers.get("content-type") ?? "";
+  const text = /html|xml/.test(contentType) ? htmlToText(raw) : raw;
+  return { ok: true, content: text.slice(0, 20_000), metadata: { url: url.toString(), truncated: text.length > 20_000 } };
 }
 
 export function makeArtifactName(instruction: string): string {

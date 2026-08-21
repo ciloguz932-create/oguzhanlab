@@ -174,9 +174,20 @@ export interface ToolDefinition {
   id: string;
   title: string;
   description: string;
-  source: "native" | "mcp" | "plugin" | "provider";
+  source: "native" | "mcp" | "plugin" | "provider" | "integration";
   risk: RiskLevel;
   inputSchema: Record<string, unknown>;
+}
+
+export type IntegrationId = "github" | "email";
+
+export interface IntegrationConfig {
+  id: IntegrationId;
+  enabled: boolean;
+  connected: boolean;
+  credentialId?: string;
+  createdAt: string;
+  lastError?: string;
 }
 
 export interface ToolResult {
@@ -224,6 +235,7 @@ export interface AppState {
   artifacts: Artifact[];
   mcpServers: McpServerConfig[];
   skills: Skill[];
+  integrations: IntegrationConfig[];
   permissionPolicies: Record<string, PermissionDecision>;
   pendingPermission?: PermissionRequest;
   offlineMode: boolean;

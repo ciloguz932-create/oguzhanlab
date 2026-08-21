@@ -2,6 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
 
+import { mergeIntegrations, seedIntegrations } from "./integrations";
 import { recoverInterruptedRuns } from "./recovery";
 import { mergeBuiltInSkills, seedSkills } from "./skills";
 import type { AppState, CredentialMetadata } from "./types";
@@ -23,11 +24,13 @@ export const initialAppState = (): AppState => ({
   artifacts: [],
   mcpServers: [],
   skills: seedSkills(),
+  integrations: seedIntegrations(),
   permissionPolicies: {
     "global:filesystem.writeMarkdown": "allow",
     "global:text.transform": "allow",
     "global:calculator.evaluate": "allow",
     "global:web.search": "ask",
+    "global:web.fetch": "ask",
   },
   offlineMode: false,
   debugMode: false,
@@ -39,8 +42,9 @@ export class LocalStateRepository {
     if (!raw) return initialAppState();
     try {
       const merged = { ...initialAppState(), ...JSON.parse(raw) } as AppState;
-      // Surface any newly shipped built-in skills while preserving user choices.
+      // Surface any newly shipped built-in skills / integrations while preserving user choices.
       merged.skills = mergeBuiltInSkills(merged.skills ?? []);
+      merged.integrations = mergeIntegrations(merged.integrations ?? []);
       return recoverInterruptedRuns(merged);
     } catch {
       return initialAppState();

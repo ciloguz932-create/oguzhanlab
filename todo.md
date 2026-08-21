@@ -36,8 +36,19 @@
 - [x] Kullanıcı tanımlı özel yetenek ekleme/silme, etkinleştirme/devre dışı bırakma (Yetenekler ekranı)
 - [x] Yetenek birim testleri (8 test)
 
+## Phase 4 — Harici entegrasyonlar
+- [x] Token tabanlı native entegrasyon çerçevesi (ToolRegistry'ye araç ekler)
+- [x] GitHub entegrasyonu (arama, depo/issue/dosya okuma, izinli issue oluşturma)
+- [x] E-posta entegrasyonu (Resend ile gerçek gönderim, izinli)
+- [x] web.fetch (URL → okunabilir metin, SSRF korumalı) ve derin araştırma güçlendirmesi
+- [x] GitHub ve E-posta yerleşik yetenekleri; Entegrasyonlar ekranı
+- [x] Entegrasyon birim testleri (11 test); Gmail/Drive için MCP + OAuth planı belgelendi
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 4: Email/Research/GitHub/Drive araç entegrasyonları
+- [ ] Phase 5: Sub-agent'lar
+- [ ] Phase 6: Arka plan yürütme
+- [ ] Phase 7: Tarayıcı ajanı
+- [ ] MCP OAuth 2.1/PKCE (Gmail/Drive native entegrasyonlarının önkoşulu)
 - [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme
 - [ ] Phase 7: Tarayıcı ajanı

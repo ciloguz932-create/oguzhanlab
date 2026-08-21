@@ -44,6 +44,7 @@ Katmanlar tek yönde bağımlıdır: UI yalnızca `AgentProvider`'ı bilir; runt
 | `lib/agent/model-router.ts` | `task.modelRequirement` + yetenek sezgisiyle model seçimi; her zaman güvenli varsayılana düşer. |
 | `lib/agent/orchestrator.ts` | **Otonom agentic döngü** (ReAct): model araçları (native + MCP) kendisi seçer, sonuçları güvenilmeyen veri olarak gözlemler, her turda planını günceller; adım/araç sınırlarıyla sınırlıdır. Aktif yetenek talimatlarını sistem istemine enjekte eder. Saf ve DI'lı — test edilebilir. |
 | `lib/agent/skills.ts` | **Yetenek (Skill) sistemi**: yeniden kullanılabilir uzmanlık paketleri (talimat + tetikleyici kelimeler + araç/model tercihi). Yerleşik yetenekler + kullanıcı tanımlı özel yetenekler; hedefe göre otomatik seçim (`selectSkills`). Saf ve test edilebilir. |
+| `lib/agent/integrations.ts` | **Entegrasyon çerçevesi**: token tabanlı harici servisler (GitHub, E-posta/Resend) native araçlar olarak ToolRegistry'ye eklenir; gerçek HTTP çağrıları, güvenli token saklama, yazma işlemleri için izin kapısı. OAuth gerektiren servisler MCP ile bağlanır (bkz. `INTEGRATIONS.md`). |
 | `lib/agent/planner.ts` | Agentic yürütme için hafif üç aşamalı iskelet (`createOutline`) ve geriye dönük statik plan (`createPlan`). |
 | `lib/agent/task-graph.ts` | DAG doğrulama, topolojik sıralama, döngü tespiti, hazır görev seçimi. |
 | `lib/agent/tools.ts` | Native tool registry; güvenli hesap makinesi; read-only web araştırması; artifact adı üretimi. |
@@ -82,10 +83,13 @@ Tüm uygulama durumu (`AppState`) AsyncStorage'da saklanır; kimlik bilgileri ay
 - **Otonom MCP tool seçimi**: MCP araçları native araçlarla aynı katalogda; agent bunları planlama sırasında kendisi seçip çağırır.
 - **Yetenek (Skill) sistemi**: hedefe göre otomatik seçilen, sistem istemine talimat enjekte eden ve model tercihini biçimlendiren yeniden kullanılabilir uzmanlık paketleri; yerleşik + kullanıcı tanımlı, Yetenekler ekranından yönetilir (`skills.ts`).
 
+## Uygulandı (Phase 4)
+
+- **Entegrasyon çerçevesi** + yerleşik GitHub (PAT) ve E-posta (Resend) entegrasyonları; `web.fetch` ile derin araştırma. GitHub/E-posta yetenekleri (`skill.github`, `skill.email`). Bkz. `INTEGRATIONS.md`.
+
 ## Planlı (henüz uygulanmadı — uydurulmadı)
 
-- MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme.
-- Sub-agent'lar, arka plan yürütme, tarayıcı otomasyonu, yerel model inference.
-- Harici servis entegrasyonları (Email/GitHub/Drive vb.) MCP veya native tool olarak (Phase 4).
+- MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme (Gmail/Drive native entegrasyonlarının önkoşulu).
+- Sub-agent'lar (Phase 5), arka plan yürütme (Phase 6), tarayıcı ajanı (Phase 7), yerel model inference.
 
 Bu yetenekler için sözleşmeler (`ProviderAdapter`, `ToolRegistry`, `McpAuthType`) hazırdır; eklenmeleri çekirdeği yeniden yazmayı gerektirmez.

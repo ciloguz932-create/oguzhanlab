@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { ArtifactStore } from "./artifacts";
 import { withRetry } from "./errors";
+import { getIntegrationDef, INTEGRATION_DEFS, integrationForToolId, validateIntegrationToken } from "./integrations";
 import { McpClient } from "./mcp";
 import { selectModel } from "./model-router";
 import { type AgentTool, DEFAULT_LIMITS, type PendingToolCall, type PermissionGate, runAgentLoop } from "./orchestrator";
@@ -10,9 +11,9 @@ import { ProviderRegistry } from "./providers";
 import { assertSafeRemoteUrl, makeId, safeErrorMessage } from "./security";
 import { makeCustomSkill, selectSkills, skillModelRequirement } from "./skills";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
-import { executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
+import { executeWebFetch, executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
 import { addUsage, emptyTotals, estimateCostUsd } from "./usage";
-import type { ActivityEvent, AgentRun, AgentTask, AppState, Artifact, ChatMessage, McpAuthType, McpServerConfig, ModelRequirement, PermissionDecision, PermissionRequest, ProviderConnection, ProviderId, ProviderMessage, ProviderUsage, RunStatus, Skill, TaskGraph, TaskKind, TaskStatus, ToolResult, Workspace } from "./types";
+import type { ActivityEvent, AgentRun, AgentTask, AppState, Artifact, ChatMessage, IntegrationId, McpAuthType, McpServerConfig, ModelRequirement, PermissionDecision, PermissionRequest, ProviderConnection, ProviderId, ProviderMessage, ProviderUsage, RunStatus, Skill, TaskGraph, TaskKind, TaskStatus, ToolResult, Workspace } from "./types";
 
 // Safety bounds so a run can never spend unboundedly or loop forever.
 const MAX_TRANSIENT_RETRIES = 2;
@@ -54,6 +55,9 @@ interface AgentContextValue {
   setSkillEnabled: (skillId: string, enabled: boolean) => void;
   addSkill: (input: { name: string; description?: string; instructions: string; keywords?: string[]; toolRequirements?: string[]; modelRequirement?: ModelRequirement }) => Skill;
   removeSkill: (skillId: string) => void;
+  connectIntegration: (id: IntegrationId, token: string) => Promise<void>;
+  disconnectIntegration: (id: IntegrationId) => Promise<void>;
+  setIntegrationEnabled: (id: IntegrationId, enabled: boolean) => void;
   readArtifact: (artifact: Artifact) => Promise<string>;
   clearLocalData: () => Promise<void>;
 }
@@ -88,6 +92,9 @@ export function AgentProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     repository.load().then((loaded) => {
+      // Register the static integration tools so ids resolve for gating/dispatch;
+      // exposure to the agent is decided by buildCatalog (enabled + connected only).
+      INTEGRATION_DEFS.forEach((def) => def.tools.forEach((tool) => tools.register(tool)));
       // Rehydrate the in-memory tool registry with tools discovered in prior sessions
       // so MCP tools remain resolvable after a restart.
       for (const server of loaded.mcpServers) {
@@ -194,12 +201,19 @@ export function AgentProvider({ children }: PropsWithChildren) {
     return "ask";
   }, [tools]);
 
-  // Builds the tool catalog offered to the agentic loop from the central registry,
-  // excluding network tools while offline. Native + MCP tools share one namespace.
+  // Builds the tool catalog offered to the agentic loop from the central registry.
+  // Native, MCP and integration tools share one namespace; offline drops network
+  // tools, and integration tools appear only when their integration is connected+enabled.
   const buildCatalog = useCallback((): AgentTool[] => {
     const offline = stateRef.current.offlineMode;
+    const activeIntegrations = new Set(stateRef.current.integrations.filter((config) => config.enabled && config.connected).map((config) => config.id));
+    const networkNative = new Set(["web.search", "web.fetch"]);
     return tools.list()
-      .filter((tool) => !(offline && (tool.id === "web.search" || tool.source === "mcp")))
+      .filter((tool) => {
+        if (offline && (networkNative.has(tool.id) || tool.source === "mcp" || tool.source === "integration")) return false;
+        if (tool.source === "integration") return activeIntegrations.has(tool.id.split(".")[0] as IntegrationId);
+        return true;
+      })
       .map((tool) => ({ id: tool.id, title: tool.title, description: tool.description, risk: tool.risk, inputSchema: tool.inputSchema }));
   }, [tools]);
 
@@ -253,6 +267,10 @@ export function AgentProvider({ children }: PropsWithChildren) {
           const query = String(args.query ?? args.q ?? run.instruction);
           return await withRetry<ToolResult>(() => executeWebSearch(query, signal), { retries: MAX_TRANSIENT_RETRIES, signal });
         }
+        if (toolId === "web.fetch") {
+          if (stateRef.current.offlineMode) return { ok: false, content: "", error: "Çevrimdışı modda web getirme kullanılamaz." };
+          return await withRetry<ToolResult>(() => executeWebFetch(String(args.url ?? ""), signal), { retries: MAX_TRANSIENT_RETRIES, signal });
+        }
         if (toolId === "calculator.evaluate") {
           return { ok: true, content: String(safeCalculate(String(args.expression ?? ""))) };
         }
@@ -283,6 +301,14 @@ export function AgentProvider({ children }: PropsWithChildren) {
           if (!server) return { ok: false, content: "", error: "MCP sunucusu bulunamadı." };
           const token = server.credentialId ? await credentials.getCredential(server.credentialId) : null;
           return await mcp.callTool(server, token, toolName, args);
+        }
+        const integration = integrationForToolId(toolId);
+        if (integration) {
+          if (stateRef.current.offlineMode) return { ok: false, content: "", error: "Çevrimdışı modda entegrasyon araçları kullanılamaz." };
+          const config = stateRef.current.integrations.find((item) => item.id === integration.id);
+          if (!config?.enabled || !config.connected) return { ok: false, content: "", error: `${integration.name} bağlı değil.` };
+          const token = config.credentialId ? await credentials.getCredential(config.credentialId) : null;
+          return await integration.execute(toolId, args, token, signal);
         }
         return { ok: false, content: "", error: `Bilinmeyen araç: ${toolId}` };
       } catch (error) {
@@ -463,6 +489,31 @@ export function AgentProvider({ children }: PropsWithChildren) {
     apply((current) => ({ ...current, skills: current.skills.filter((skill) => skill.id !== skillId || skill.builtin) }));
   }, [apply]);
 
+  // Connects a native integration: validates the token where possible, stores it in the
+  // secure credential layer (never in app state), and enables its tools.
+  const connectIntegration = useCallback(async (id: IntegrationId, token: string) => {
+    const def = getIntegrationDef(id);
+    if (!def) throw new Error("Bilinmeyen entegrasyon.");
+    if (def.requiresToken && !token.trim()) throw new Error("Token boş olamaz.");
+    const check = await validateIntegrationToken(id, token.trim());
+    if (!check.ok) throw new Error(check.reason ?? "Kimlik doğrulaması başarısız.");
+    const existing = stateRef.current.integrations.find((item) => item.id === id);
+    if (existing?.credentialId) await credentials.deleteCredential(existing.credentialId);
+    const credentialId = makeId("integration");
+    await credentials.saveCredential({ id: credentialId, provider: "local", label: `${def.name} token`, createdAt: now() }, token.trim());
+    apply((current) => ({ ...current, integrations: current.integrations.map((item) => (item.id === id ? { ...item, connected: true, enabled: true, credentialId, lastError: undefined } : item)) }));
+  }, [apply, credentials]);
+
+  const disconnectIntegration = useCallback(async (id: IntegrationId) => {
+    const config = stateRef.current.integrations.find((item) => item.id === id);
+    if (config?.credentialId) await credentials.deleteCredential(config.credentialId);
+    apply((current) => ({ ...current, integrations: current.integrations.map((item) => (item.id === id ? { ...item, connected: false, enabled: false, credentialId: undefined, lastError: undefined } : item)) }));
+  }, [apply, credentials]);
+
+  const setIntegrationEnabled = useCallback((id: IntegrationId, enabled: boolean) => {
+    apply((current) => ({ ...current, integrations: current.integrations.map((item) => (item.id === id ? { ...item, enabled: enabled && item.connected } : item)) }));
+  }, [apply]);
+
   const clearLocalData = useCallback(async () => {
     const credentialIndex = await credentials.listCredentials();
     await Promise.all(credentialIndex.map((item) => credentials.deleteCredential(item.id)));
@@ -473,7 +524,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, [credentials, repository]);
 
   const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId);
-  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, createWorkspace, disconnect, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setOfflineMode, setSkillEnabled, state, submitInstruction]);
+  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
 }
 
