@@ -44,8 +44,13 @@
 - [x] GitHub ve E-posta yerleşik yetenekleri; Entegrasyonlar ekranı
 - [x] Entegrasyon birim testleri (11 test); Gmail/Drive için MCP + OAuth planı belgelendi
 
+## Phase 5 — Alt-agent'lar
+- [x] Rol tabanlı alt-agent'lar (research/coding/data/writing), salt-okunur kapsam
+- [x] agent.spawn aracı; izin kapısı devretme noktası; özyinelemeye yapısal kapalılık
+- [x] Bütçe (maxSteps/maxToolCalls, çalışma başına en fazla 4 alt-agent) ve paylaşılan iptal
+- [x] Orkestratör yeteneği; alt-agent birim testleri (7 test); SUBAGENTS.md
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme
 - [ ] Phase 7: Tarayıcı ajanı
 - [ ] MCP OAuth 2.1/PKCE (Gmail/Drive native entegrasyonlarının önkoşulu)

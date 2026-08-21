@@ -10,6 +10,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Model yönlendirme | Görevin gereksinimine (`fast`/`reasoning`/`coding`/`vision`) göre yetenek-farkında model seçimi; güvenli varsayılana düşme. |
 | Yetenekler (Skills) | Hedefe göre otomatik seçilen, sistem istemine uzmanlık talimatı enjekte eden ve model tercihini biçimlendiren yeniden kullanılabilir paketler. Yerleşik (Derin Araştırma, Doküman Yazarı, Çalışma Planlayıcı, Veri Analisti, GitHub Asistanı, E-posta Gönderici) + kullanıcı tanımlı özel yetenekler. |
 | Entegrasyonlar | Token tabanlı harici servisler araçlarını agent'a ekler: **GitHub** (arama/okuma/issue), **E-posta** (Resend ile gerçek gönderim) ve token'sız `web.fetch`. OAuth gerektiren Gmail/Drive için MCP sunucusu bağlanır. Bkz. [`INTEGRATIONS.md`](./INTEGRATIONS.md). |
+| Alt-agent'lar | Ana agent, karmaşık hedefleri `agent.spawn` ile rol tabanlı (research/coding/data/writing) **salt-okunur** alt-agent'lara devreder; bütçeli, iptal edilebilir, özyinelemeye kapalı. Bkz. [`SUBAGENTS.md`](./SUBAGENTS.md). |
 | Kimlik bilgileri | Android/iOS’ta `expo-secure-store`; web önizlemesinde yalnızca oturumluk `sessionStorage` geri dönüşü. Anahtarlar olay günlüklerinden ve kalıcı uygulama durumundan ayrıdır. |
 | Agent Runtime | **Otonom agentic döngü**: model araçları (native + MCP) kendisi seçer, sonuçları güvenilmeyen veri olarak gözlemler ve her turda planını günceller (dinamik replanning). İzin askıya alma/devam etme, geçici hatalarda backoff’lu yeniden deneme, gerçek durdurma, adım/araç/hard-cap sınırları ve yarıda kalan çalışmaların kurtarılması. |
 | Maliyet/token | Çalışma başına token toplama ve **tahmini** maliyet (public liste fiyatları, açıkça "tahmini" etiketli). |
@@ -18,7 +19,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Güvenlik | Prompt/tool çıktıları güvenilmeyen veri olarak ele alınır; secret redaction, URL/özel ağ kısıtlaması, dosya adı sanitizasyonu ve risk tabanlı izin kapısı kullanılır. |
 | MCP | HTTPS Streamable HTTP ile `tools/list` keşfi ve `tools/call` **gerçek çağrısı**; açık veya Bearer token korumalı sunucular için araçların merkezi registry’ye alınması; JSON + SSE yanıt desteği. |
 
-Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md)
+Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md)
 
 > Web önizlemesi, tarayıcının güvenli depolama modelinden dolayı mobil secure storage ile aynı güvenlik garantisini vermez. Üretim anahtarlarını yalnızca Android/iOS uygulamasında saklayın.
 

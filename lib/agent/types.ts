@@ -158,6 +158,7 @@ export interface AgentRun {
   selectedConnectionId?: string;
   selectedModel?: string;
   activeSkillIds?: string[];
+  subagentCount?: number;
   startedAt: string;
   completedAt?: string;
   error?: string;

@@ -10,6 +10,7 @@ import { Planner } from "./planner";
 import { ProviderRegistry } from "./providers";
 import { assertSafeRemoteUrl, makeId, safeErrorMessage } from "./security";
 import { makeCustomSkill, selectSkills, skillModelRequirement } from "./skills";
+import { isSubAgentRole, runSubAgent, SUBAGENT_ROLES } from "./subagents";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
 import { executeWebFetch, executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
 import { addUsage, emptyTotals, estimateCostUsd } from "./usage";
@@ -207,7 +208,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   const buildCatalog = useCallback((): AgentTool[] => {
     const offline = stateRef.current.offlineMode;
     const activeIntegrations = new Set(stateRef.current.integrations.filter((config) => config.enabled && config.connected).map((config) => config.id));
-    const networkNative = new Set(["web.search", "web.fetch"]);
+    const networkNative = new Set(["web.search", "web.fetch", "agent.spawn"]);
     return tools.list()
       .filter((tool) => {
         if (offline && (networkNative.has(tool.id) || tool.source === "mcp" || tool.source === "integration")) return false;
@@ -259,8 +260,8 @@ export function AgentProvider({ children }: PropsWithChildren) {
       return response.content;
     };
 
-    // Executes a native or MCP tool by id. Never throws for a normal tool error.
-    const runTool = async (toolId: string, args: Record<string, unknown>, signal: AbortSignal): Promise<ToolResult> => {
+    // Executes a base (non-spawn) native/MCP/integration tool by id. Never throws for a normal tool error.
+    const dispatchBase = async (toolId: string, args: Record<string, unknown>, signal: AbortSignal): Promise<ToolResult> => {
       try {
         if (toolId === "web.search") {
           if (stateRef.current.offlineMode) return { ok: false, content: "", error: "Çevrimdışı modda web araştırması kullanılamaz." };
@@ -314,6 +315,39 @@ export function AgentProvider({ children }: PropsWithChildren) {
       } catch (error) {
         return { ok: false, content: "", error: safeErrorMessage(error) };
       }
+    };
+
+    // Bounded delegation to scoped, read-only sub-agents. Sub-agents reuse dispatchBase
+    // (never runTool), so they structurally cannot spawn further sub-agents.
+    const MAX_SUBAGENTS = 4;
+    let subagentsUsed = 0;
+    const spawnSubAgent = async (args: Record<string, unknown>, signal: AbortSignal): Promise<ToolResult> => {
+      if (stateRef.current.offlineMode) return { ok: false, content: "", error: "Çevrimdışı modda alt-agent çalıştırılamaz." };
+      const role = String(args.role ?? "");
+      const task = String(args.task ?? "");
+      if (!isSubAgentRole(role)) return { ok: false, content: "", error: `Geçersiz rol: ${role}. Geçerli roller: ${Object.keys(SUBAGENT_ROLES).join(", ")}.` };
+      if (subagentsUsed >= MAX_SUBAGENTS) return { ok: false, content: "", error: "Alt-agent sınırına ulaşıldı." };
+      subagentsUsed += 1;
+      updateRun(runId, { subagentCount: subagentsUsed });
+      addEvent({ runId, type: "TaskStarted", summary: `${SUBAGENT_ROLES[role].name} başlatıldı: ${task.slice(0, 80)}`, level: "info", details: { role } });
+      const result = await runSubAgent(role, task, {
+        catalog: buildCatalog(),
+        signal,
+        deps: {
+          callModel,
+          dispatchTool: dispatchBase,
+          emit: (summary, level) => addEvent({ runId, type: "ToolCallStarted", summary, level }),
+        },
+      });
+      addEvent({ runId, type: "TaskCompleted", summary: result.ok ? `${SUBAGENT_ROLES[role].name} tamamlandı.` : `${SUBAGENT_ROLES[role].name} başarısız: ${result.error ?? ""}`, level: result.ok ? "success" : "warning" });
+      return result;
+    };
+
+    // The tool the main agent actually calls: spawn is intercepted here; everything else
+    // goes to dispatchBase. Sub-agents are given dispatchBase directly, so they never see this.
+    const runTool = async (toolId: string, args: Record<string, unknown>, signal: AbortSignal): Promise<ToolResult> => {
+      if (toolId === "agent.spawn") return spawnSubAgent(args, signal);
+      return dispatchBase(toolId, args, signal);
     };
 
     const deps = {

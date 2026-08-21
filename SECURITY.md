@@ -30,6 +30,12 @@ MCP sunucusu artık **eklenirken** doğrulanır (yalnızca keşifte değil).
 
 Risk seviyeleri `low | medium | high | critical`. Kapı `web.search`, `filesystem.writeMarkdown` gibi işlemleri kullanıcı kararına sunar: **Bu kez izin ver / Bu proje için izin ver / Reddet**. `high`/`critical` işlemler proje geneli "allow" ile otomatik geçmez. MCP tool çalıştırma kullanıcı tetiklidir (açık rıza).
 
+## Alt-agent'lar
+
+- Alt-agent'lar yalnızca rollerinin **salt-okunur** araçlarına erişir; dosya yazma, issue/e-posta ve `agent.spawn` kapsam dışıdır.
+- Özyineleme yapısal olarak engellenir: alt-agent kataloğu spawn içermez ve alt-agent'lar temel dispatcher'ı kullanır. Çalışma başına en fazla 4 alt-agent, küçük adım/araç bütçesiyle.
+- `agent.spawn` çağrısı izin kapısından geçer (devretme onay noktası); alt-agent sonuçları güvenilmeyen veri olarak ele alınır.
+
 ## Girdi güvenliği
 
 - `sanitizeFileName` path traversal'i (`../`), gizli karakterleri ve ayırıcıları temizler; artifact'ler yalnızca aktif workspace sandbox'ına yazılır.

@@ -50,6 +50,18 @@ export const BUILTIN_SKILLS: Skill[] = [
       "Sayısal işlemleri calculator.evaluate aracıyla yerelde doğrula ve ara adımları göster. Varsayımlarını açıkça belirt, birimlere dikkat et ve sonucu kısa bir özetle sun.",
   },
   {
+    id: "skill.orchestrator",
+    name: "Orkestratör",
+    description: "Karmaşık, çok parçalı hedefleri rol tabanlı alt-agent'lara böler ve sonuçları birleştirir.",
+    keywords: ["kapsamlı", "karşılaştır", "birden fazla", "çoklu", "derinlemesine", "ayrıntılı rapor", "hem ", "analiz et ve"],
+    toolRequirements: ["agent.spawn"],
+    modelRequirement: "reasoning",
+    builtin: true,
+    enabled: true,
+    instructions:
+      "Karmaşık, bağımsız parçalara ayrılabilen hedeflerde agent.spawn ile odaklı alt görevleri uygun rollere devret (research: web araştırması, coding: depo/kod incelemesi, data: sayısal analiz, writing: metin üretimi). Her alt-agent salt-okunurdur ve kendi sonucunu döndürür. Alt-agent sonuçlarını topla, çeliş­kileri değerlendir ve tutarlı bir nihai yanıtta birleştir. Basit tek adımlı görevlerde alt-agent kullanma.",
+  },
+  {
     id: "skill.github",
     name: "GitHub Asistanı",
     description: "GitHub depolarını arar, README/dosya ve issue'ları okur, gerektiğinde issue açar.",

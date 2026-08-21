@@ -8,6 +8,7 @@ export const nativeTools: ToolDefinition[] = [
   { id: "text.transform", title: "Metin işleme", description: "Yerel metni başlık ve dosya adına dönüştürür.", source: "native", risk: "low", inputSchema: { text: "string" } },
   { id: "calculator.evaluate", title: "Hesap makinesi", description: "Kısıtlı aritmetik ifadeyi yerelde hesaplar.", source: "native", risk: "low", inputSchema: { expression: "string" } },
   { id: "filesystem.writeMarkdown", title: "Markdown dosyası yaz", description: "Workspace içinde güvenli Markdown artifact’i üretir.", source: "native", risk: "medium", inputSchema: { filename: "string", content: "string" } },
+  { id: "agent.spawn", title: "Alt-agent çalıştır", description: "Odaklı bir alt görevi rol tabanlı, salt-okunur bir alt-agent'a devreder. Roller: research, coding, data, writing.", source: "native", risk: "medium", inputSchema: { role: "research|coding|data|writing", task: "string" } },
 ];
 
 export class ToolRegistry {
