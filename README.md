@@ -22,7 +22,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Güvenlik | Prompt/tool çıktıları güvenilmeyen veri olarak ele alınır; secret redaction, URL/özel ağ kısıtlaması, dosya adı sanitizasyonu ve risk tabanlı izin kapısı kullanılır. |
 | MCP | HTTPS Streamable HTTP ile `tools/list` keşfi ve `tools/call` **gerçek çağrısı**; açık veya Bearer token korumalı sunucular için araçların merkezi registry’ye alınması; JSON + SSE yanıt desteği. |
 
-Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md) · [`BACKGROUND.md`](./BACKGROUND.md) · [`BROWSER.md`](./BROWSER.md) · [`MODELS.md`](./MODELS.md) · [`AGENT_API.md`](./AGENT_API.md)
+Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md) · [`BACKGROUND.md`](./BACKGROUND.md) · [`BROWSER.md`](./BROWSER.md) · [`MODELS.md`](./MODELS.md) · [`AGENT_API.md`](./AGENT_API.md) · [`BUILD_ANDROID.md`](./BUILD_ANDROID.md)
 
 > Web önizlemesi, tarayıcının güvenli depolama modelinden dolayı mobil secure storage ile aynı güvenlik garantisini vermez. Üretim anahtarlarını yalnızca Android/iOS uygulamasında saklayın.
 

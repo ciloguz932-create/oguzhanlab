@@ -1,0 +1,98 @@
+name: EAS Android Build
+
+# Manually triggered from the GitHub UI: Actions → "EAS Android Build" → Run workflow.
+# Builds an installable Android APK on Expo's cloud (EAS) and prints the download /
+# install link in the run summary. No local terminal required.
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "EAS build profile (preview = installable APK, production = Play Store AAB)"
+        type: choice
+        options:
+          - preview
+          - production
+        default: preview
+
+jobs:
+  build:
+    name: Build Android (${{ inputs.profile }})
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Verify EAS credentials are configured
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ]; then
+            echo "::error::EXPO_TOKEN secret is missing. Add it under Settings → Secrets and variables → Actions → New repository secret. Create the token at https://expo.dev/settings/access-tokens"
+            exit 1
+          fi
+          if [ -z "${{ vars.EAS_PROJECT_ID }}" ]; then
+            echo "::error::EAS_PROJECT_ID variable is missing. Create a project at https://expo.dev (or run eas init once), then add its id under Settings → Secrets and variables → Actions → Variables."
+            exit 1
+          fi
+          if [ -z "${{ vars.EXPO_OWNER }}" ]; then
+            echo "::error::EXPO_OWNER variable is missing. Set it to your Expo account (or org) username under Actions → Variables."
+            exit 1
+          fi
+
+      - name: Build APK on EAS
+        id: build
+        env:
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+        run: |
+          set -euo pipefail
+          eas build --platform android --profile "${{ inputs.profile }}" --non-interactive --wait --json > build.json
+          node -e '
+            const builds = require("./build.json");
+            const b = Array.isArray(builds) ? builds[0] : builds;
+            const a = b && b.artifacts ? b.artifacts : {};
+            const download = a.applicationArchiveUrl || a.buildUrl || "";
+            const page = b && b.id && process.env.EXPO_OWNER
+              ? `https://expo.dev/accounts/${process.env.EXPO_OWNER}/projects/oguzhanlab-mobile/builds/${b.id}`
+              : "";
+            const fs = require("fs");
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `download=${download}\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `page=${page}\n`);
+          '
+
+      - name: Publish install link to summary
+        if: always()
+        run: |
+          {
+            echo "## 📱 OguzhanLab Agent — Android build"
+            echo ""
+            if [ -n "${{ steps.build.outputs.download }}" ]; then
+              echo "**İndirilebilir dosya:** ${{ steps.build.outputs.download }}"
+              echo ""
+              echo "**Build sayfası:** ${{ steps.build.outputs.page }}"
+              echo ""
+              echo "Telefonundan bu bağlantıyı aç, dosyayı indir ve kur. Android \"Bilinmeyen kaynaklar\" iznini isteyebilir — bir kez onayla."
+              echo ""
+              echo "> \`preview\` profili APK üretir (doğrudan kurulur). \`production\` profili Play Store için AAB üretir (doğrudan kurulmaz)."
+            else
+              echo "Build bağlantısı üretilemedi. \"Build APK on EAS\" adımındaki günlüklere ve gerekli secret/variable'lara bakın."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
