@@ -14,8 +14,9 @@ export type TaskStatus =
   | "blocked";
 export type TaskKind = "analysis" | "research" | "generation" | "artifact" | "verification";
 export type RiskLevel = "low" | "medium" | "high" | "critical";
+export type ModelRequirement = "fast" | "reasoning" | "coding" | "vision";
 export type PermissionDecision = "ask" | "allow" | "deny";
-export type RunStatus = "idle" | "planning" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled";
+export type RunStatus = "idle" | "queued" | "planning" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled";
 export type ArtifactKind = "markdown" | "text" | "json" | "code" | "report";
 export type McpTransport = "streamable-http" | "stdio";
 export type McpAuthType = "none" | "bearer" | "oauth-pkce";
@@ -34,6 +35,8 @@ export interface ProviderConnection {
   status: ConnectionState;
   models: ProviderModel[];
   defaultModel: string;
+  // User-pinned specialist model per requirement tier; overrides router heuristics.
+  modelOverrides?: Partial<Record<ModelRequirement, string>>;
   createdAt: string;
   lastValidatedAt?: string;
   lastError?: string;
@@ -65,7 +68,7 @@ export interface AgentTask {
   priority: number;
   dependencies: string[];
   toolRequirements: string[];
-  modelRequirement?: "fast" | "reasoning" | "coding" | "vision";
+  modelRequirement?: ModelRequirement;
   input: string;
   output?: string;
   error?: string;
@@ -129,6 +132,25 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  instructions: string;
+  keywords: string[];
+  toolRequirements: string[];
+  modelRequirement?: ModelRequirement;
+  builtin: boolean;
+  enabled: boolean;
+}
+
+export interface RunUsage {
+  inputTokens: number;
+  outputTokens: number;
+  estimatedCostUsd: number;
+  hasCost: boolean;
+}
+
 export interface AgentRun {
   id: string;
   workspaceId: string;
@@ -136,19 +158,39 @@ export interface AgentRun {
   graph: TaskGraph;
   status: RunStatus;
   selectedConnectionId?: string;
+  selectedModel?: string;
+  activeSkillIds?: string[];
+  subagentCount?: number;
   startedAt: string;
   completedAt?: string;
   error?: string;
   artifactIds: string[];
+  usage?: RunUsage;
+  // Agentic-loop state persisted for permission suspend/resume and restart recovery.
+  transcript?: ProviderMessage[];
+  pendingToolCall?: { toolId: string; args: Record<string, unknown>; reason: string };
+  steps?: number;
+  toolCalls?: number;
 }
 
 export interface ToolDefinition {
   id: string;
   title: string;
   description: string;
-  source: "native" | "mcp" | "plugin" | "provider";
+  source: "native" | "mcp" | "plugin" | "provider" | "integration";
   risk: RiskLevel;
   inputSchema: Record<string, unknown>;
+}
+
+export type IntegrationId = "github" | "email";
+
+export interface IntegrationConfig {
+  id: IntegrationId;
+  enabled: boolean;
+  connected: boolean;
+  credentialId?: string;
+  createdAt: string;
+  lastError?: string;
 }
 
 export interface ToolResult {
@@ -195,10 +237,13 @@ export interface AppState {
   events: ActivityEvent[];
   artifacts: Artifact[];
   mcpServers: McpServerConfig[];
+  skills: Skill[];
+  integrations: IntegrationConfig[];
   permissionPolicies: Record<string, PermissionDecision>;
   pendingPermission?: PermissionRequest;
   offlineMode: boolean;
   debugMode: boolean;
+  notificationsEnabled: boolean;
 }
 
 export interface ProviderUsage {

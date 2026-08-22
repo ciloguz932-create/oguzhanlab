@@ -13,5 +13,74 @@
 - [x] Unit testleri, type-check, lint, build ve güvenlik kontrollerini çalıştırmak
 - [x] README ve environment örneğini hazırlamak
 - [x] Tamamlanan projeyi seçili GitHub deposuna aktarmak
-- [ ] MCP OAuth 2.1/PKCE tarayıcı dönüş akışını ve token yenilemeyi eklemek
 - [x] Sürüm kaydını engelleyen mobil simge varlıklarını optimize etmek
+- [x] Anthropic gerçek SSE streaming ve Google Gemini adapter'ı eklemek
+- [x] Yetenek-farkında model router (task.modelRequirement) eklemek
+- [x] Token/maliyet toplama ve UI'da tahmini maliyet göstermek
+- [x] Yapısal hata sınıflandırma, backoff'lu yeniden deneme ve döngü/adım sınırları
+- [x] Yeniden başlatmada yarıda kalan çalışmaların kurtarılması
+- [x] MCP tools/call gerçek çağrısı, SSE yanıt işleme ve keşif sonrası kalıcı registry
+- [x] ARCHITECTURE.md, SECURITY.md, MCP.md belgelerini gerçek uygulamayla hizalamak
+
+## Phase 2 — Dinamik replanning + otonom MCP
+- [x] Otonom agentic döngü (ReAct): model araçları kendisi seçer, gözlemler, yeniden planlar
+- [x] MCP araçlarının native araçlarla aynı katalogda otonom seçimi ve `tools/call` yürütmesi
+- [x] İzin askıya alma/devam etme (allow/deny/resume) ve reddedince araçsız uyarlanma
+- [x] Adım/araç/hard-cap sınırlarıyla sonsuz döngü koruması
+- [x] Orchestrator birim testleri (10 test)
+
+## Phase 3 — Yetenekler / Capabilities
+- [x] Yeniden kullanılabilir Skill modeli (talimat + tetikleyici kelimeler + araç/model tercihi)
+- [x] Yerleşik yetenekler: Derin Araştırma, Doküman Yazarı, Çalışma Planlayıcı, Veri Analisti
+- [x] Hedefe göre otomatik yetenek seçimi ve sistem istemine talimat enjeksiyonu
+- [x] Kullanıcı tanımlı özel yetenek ekleme/silme, etkinleştirme/devre dışı bırakma (Yetenekler ekranı)
+- [x] Yetenek birim testleri (8 test)
+
+## Phase 4 — Harici entegrasyonlar
+- [x] Token tabanlı native entegrasyon çerçevesi (ToolRegistry'ye araç ekler)
+- [x] GitHub entegrasyonu (arama, depo/issue/dosya okuma, izinli issue oluşturma)
+- [x] E-posta entegrasyonu (Resend ile gerçek gönderim, izinli)
+- [x] web.fetch (URL → okunabilir metin, SSRF korumalı) ve derin araştırma güçlendirmesi
+- [x] GitHub ve E-posta yerleşik yetenekleri; Entegrasyonlar ekranı
+- [x] Entegrasyon birim testleri (11 test); Gmail/Drive için MCP + OAuth planı belgelendi
+
+## Phase 5 — Alt-agent'lar
+- [x] Rol tabanlı alt-agent'lar (research/coding/data/writing), salt-okunur kapsam
+- [x] agent.spawn aracı; izin kapısı devretme noktası; özyinelemeye yapısal kapalılık
+- [x] Bütçe (maxSteps/maxToolCalls, çalışma başına en fazla 4 alt-agent) ve paylaşılan iptal
+- [x] Orkestratör yeteneği; alt-agent birim testleri (7 test); SUBAGENTS.md
+
+## Phase 6 — Dayanıklı / arka plan yürütme
+- [x] Döngü içi transcript checkpoint'i (onProgress) ile dayanıklılık
+- [x] Yeniden başlatmada checkpoint'li çalışmaları queued'e alma, checkpoint'siz olanları failed
+- [x] Ön plana gelince (AppState) ve soğuk başlatmada queued çalışmaları otomatik devam
+- [x] expo-keep-awake ile aktif çalışma sırasında ekranı açık tutma
+- [x] Tamamlama/başarısızlık/izin için yerel bildirimler (expo-notifications, opt-in)
+- [x] OS sınırlarının dürüst belgelenmesi (BACKGROUND.md); +2 test (queued/onProgress)
+
+## Phase 7 — Web gezinme / tarayıcı ajanı
+- [x] web.extractLinks (sayfa bağlantılarını çıkar) + HTTP tabanlı gezinme
+- [x] Araştırma Alt-Agent'a gezinme; Web Gezgini yerleşik yeteneği
+- [x] SSRF koruması, çevrimdışı devre dışı bırakma, izin kapısı
+- [x] Gerçek tarayıcı otomasyonu için uzak tarayıcı-MCP seam'i (BROWSER.md); +4 test
+
+## Phase 8 — Fable / uzman modeller
+- [x] Tier bazlı model yönlendirme + kullanıcı sabitlemesi (override) her tier için
+- [x] Güncel Claude modelleri (Fable 5, Opus 5, Sonnet 5, Haiku 4.5) sezgi + fiyat tablosu
+- [x] Sağlayıcılar ekranında uzman model seçimi UI; MODELS.md; +2 test
+
+## Phase 9 — Bulut dağıtımı + Agent API
+- [x] Bağımsız HTTP Agent API (server/agent-api): REST + SSE, aynı RN'siz çekirdeği kullanır
+- [x] Durumsuz kimlik bilgisi (anahtar saklanmaz), önden izin (allowedTools), token/maliyet raporu
+- [x] Dockerfile + .dockerignore + build:agent-api/start:agent-api betikleri
+- [x] AGENT_API.md (uç noktalar, güvenlik, dağıtım, dürüst sınırlar); +5 entegrasyon testi
+
+## Sonraki adımlar (planlı — uydurulmadı)
+- [ ] Agent API kalıcı depo (Postgres/SQLite) + kimlik doğrulama/kota
+- [ ] Agent API üzerinden MCP/entegrasyon köprüsü
+- [ ] Uzak tarayıcı-MCP entegrasyonu (JS render / tıklama / ekran görüntüsü)
+- [ ] Rol bazlı alt-agent model yönlendirme; MCP OAuth 2.1/PKCE
+- [ ] Phase 5: Sub-agent'lar
+- [ ] Phase 6: Arka plan yürütme
+- [ ] Phase 7: Tarayıcı ajanı
+- [ ] MCP OAuth 2.1/PKCE tarayıcı dönüş akışı ve token yenileme

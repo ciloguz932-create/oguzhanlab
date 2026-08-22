@@ -22,6 +22,7 @@ const MAPPING = {
   "checklist": "checklist",
   "doc.fill": "description",
   "gearshape.fill": "settings",
+  "sparkles": "auto-awesome",
 } as IconMapping;
 
 /**

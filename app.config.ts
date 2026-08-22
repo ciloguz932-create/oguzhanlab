@@ -38,10 +38,16 @@ const env = {
   androidPackage: bundleId,
 };
 
+// EAS linkage is supplied via environment (CI variables), never hardcoded, so no
+// account-specific value lives in the repo. Local dev/tests work with these unset.
+const easProjectId = process.env.EAS_PROJECT_ID || undefined;
+const expoOwner = process.env.EXPO_OWNER || undefined;
+
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
   version: "1.0.0",
+  ...(expoOwner ? { owner: expoOwner } : {}),
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
@@ -131,6 +137,11 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+  },
+  extra: {
+    // Populated by EAS/CI (see .github/workflows/eas-android-build.yml). Undefined
+    // locally, which is fine — it is only required at build time on EAS.
+    eas: { projectId: easProjectId },
   },
 };
 

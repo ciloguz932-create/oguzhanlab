@@ -1,11 +1,15 @@
-import { assertSafeRemoteUrl, sanitizeFileName, safeErrorMessage } from "./security";
+import { AgentError, httpError } from "./errors";
+import { assertSafeRemoteUrl, sanitizeFileName } from "./security";
 import type { ToolDefinition, ToolResult } from "./types";
 
 export const nativeTools: ToolDefinition[] = [
   { id: "web.search", title: "Web araştırması", description: "Açık webde başlangıç kaynağı arar.", source: "native", risk: "medium", inputSchema: { query: "string" } },
+  { id: "web.fetch", title: "Web sayfası getir", description: "Bir HTTPS URL'sini getirir ve okunabilir metne dönüştürür.", source: "native", risk: "medium", inputSchema: { url: "string" } },
+  { id: "web.extractLinks", title: "Sayfa bağlantılarını çıkar", description: "Bir HTTPS sayfasındaki bağlantıları (metin + URL) listeler; gezinmek için kullanılır.", source: "native", risk: "medium", inputSchema: { url: "string" } },
   { id: "text.transform", title: "Metin işleme", description: "Yerel metni başlık ve dosya adına dönüştürür.", source: "native", risk: "low", inputSchema: { text: "string" } },
   { id: "calculator.evaluate", title: "Hesap makinesi", description: "Kısıtlı aritmetik ifadeyi yerelde hesaplar.", source: "native", risk: "low", inputSchema: { expression: "string" } },
   { id: "filesystem.writeMarkdown", title: "Markdown dosyası yaz", description: "Workspace içinde güvenli Markdown artifact’i üretir.", source: "native", risk: "medium", inputSchema: { filename: "string", content: "string" } },
+  { id: "agent.spawn", title: "Alt-agent çalıştır", description: "Odaklı bir alt görevi rol tabanlı, salt-okunur bir alt-agent'a devreder. Roller: research, coding, data, writing.", source: "native", risk: "medium", inputSchema: { role: "research|coding|data|writing", task: "string" } },
 ];
 
 export class ToolRegistry {
@@ -64,23 +68,107 @@ export function safeCalculate(expression: string): number {
   return stack[0];
 }
 
-export async function executeWebSearch(query: string): Promise<ToolResult> {
-  try {
-    if (!query.trim()) throw new Error("Arama sorgusu boş olamaz.");
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query.slice(0, 300))}&format=json&no_html=1&skip_disambig=1`;
-    assertSafeRemoteUrl(url);
-    const response = await fetch(url, { headers: { Accept: "application/json" } });
-    if (!response.ok) throw new Error("Arama hizmeti yanıt vermedi.");
-    const data = (await response.json()) as { AbstractText?: string; AbstractURL?: string; RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string; FirstURL?: string }> }> };
-    const sources = (data.RelatedTopics ?? []).flatMap((item) => item.Topics ?? [item]).filter((item) => item.Text && item.FirstURL).slice(0, 8).map((item) => `- ${item.Text}\n  ${item.FirstURL}`);
-    const content = [data.AbstractText ? `Özet: ${data.AbstractText}${data.AbstractURL ? `\nKaynak: ${data.AbstractURL}` : ""}` : "", ...sources].filter(Boolean).join("\n\n");
-    return { ok: true, content: content || "Arama tamamlandı; sınırlı yapılandırılmış sonuç döndü.", metadata: { sourceCount: sources.length } };
-  } catch (error) {
-    return { ok: false, content: "", error: safeErrorMessage(error) };
+/**
+ * Runs a read-only open-web lookup via the DuckDuckGo Instant Answer API. Throws
+ * on transport/HTTP failure (so callers can classify + retry transient errors) and
+ * returns a successful ToolResult even when the structured answer is sparse.
+ */
+export async function executeWebSearch(query: string, signal?: AbortSignal): Promise<ToolResult> {
+  if (!query.trim()) throw new AgentError("Arama sorgusu boş olamaz.", "client", { retryable: false });
+  const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query.slice(0, 300))}&format=json&no_html=1&skip_disambig=1`;
+  assertSafeRemoteUrl(url);
+  const response = await fetch(url, { headers: { Accept: "application/json" }, signal });
+  if (!response.ok) throw httpError(response.status);
+  const data = (await response.json()) as { AbstractText?: string; AbstractURL?: string; RelatedTopics?: Array<{ Text?: string; FirstURL?: string; Topics?: Array<{ Text?: string; FirstURL?: string }> }> };
+  const sources = (data.RelatedTopics ?? []).flatMap((item) => item.Topics ?? [item]).filter((item) => item.Text && item.FirstURL).slice(0, 8).map((item) => `- ${item.Text}\n  ${item.FirstURL}`);
+  const content = [data.AbstractText ? `Özet: ${data.AbstractText}${data.AbstractURL ? `\nKaynak: ${data.AbstractURL}` : ""}` : "", ...sources].filter(Boolean).join("\n\n");
+  return { ok: true, content: content || "Arama tamamlandı; sınırlı yapılandırılmış sonuç döndü.", metadata: { sourceCount: sources.length } };
+}
+
+/** Converts an HTML document to readable plain text: drops scripts/styles, strips tags, decodes common entities. */
+export function htmlToText(html: string): string {
+  const withoutBlocks = html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<!--[\s\S]*?-->/g, " ");
+  const withBreaks = withoutBlocks
+    .replace(/<\/(p|div|h[1-6]|li|tr|section|article|header|footer)>/gi, "\n")
+    .replace(/<br\s*\/?>(?!\n)/gi, "\n");
+  const text = withBreaks.replace(/<[^>]+>/g, " ");
+  const decoded = text
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_match, code: string) => String.fromCodePoint(Number(code)));
+  return decoded.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").split("\n").map((line) => line.trim()).join("\n").trim();
+}
+
+/**
+ * Fetches an open-web page over HTTPS and returns readable text. SSRF-guarded via
+ * assertSafeRemoteUrl; throws on transport/HTTP failure so callers can retry transient errors.
+ */
+export async function executeWebFetch(rawUrl: string, signal?: AbortSignal): Promise<ToolResult> {
+  const url = assertSafeRemoteUrl(rawUrl.trim());
+  const response = await fetch(url.toString(), { headers: { Accept: "text/html,application/xhtml+xml,text/plain" }, signal });
+  if (!response.ok) throw httpError(response.status);
+  const raw = (await response.text()).slice(0, 400_000);
+  const contentType = response.headers.get("content-type") ?? "";
+  const text = /html|xml/.test(contentType) ? htmlToText(raw) : raw;
+  return { ok: true, content: text.slice(0, 20_000), metadata: { url: url.toString(), truncated: text.length > 20_000 } };
+}
+
+/**
+ * Extracts navigable links (absolute http(s) URL + link text) from an HTML page,
+ * resolving relative hrefs against the page URL. Returned as data only — the agent
+ * must call web.fetch on a chosen link, which re-applies the SSRF guard.
+ */
+export function extractLinks(html: string, baseUrl: string, limit = 50): Array<{ url: string; text: string }> {
+  const results: Array<{ url: string; text: string }> = [];
+  const seen = new Set<string>();
+  const pattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html)) && results.length < limit) {
+    let absolute: string;
+    try {
+      absolute = new URL(match[1], baseUrl).toString();
+    } catch {
+      continue;
+    }
+    if (!/^https?:/i.test(absolute)) continue;
+    const normalized = absolute.split("#")[0];
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    const text = htmlToText(match[2]).replace(/\s+/g, " ").trim().slice(0, 120);
+    results.push({ url: normalized, text });
   }
+  return results;
+}
+
+/**
+ * Fetches an HTTPS page and returns its navigable links. SSRF-guarded on the fetched
+ * URL; throws on transport/HTTP failure so callers can retry transient errors.
+ */
+export async function executeWebExtractLinks(rawUrl: string, signal?: AbortSignal): Promise<ToolResult> {
+  const url = assertSafeRemoteUrl(rawUrl.trim());
+  const response = await fetch(url.toString(), { headers: { Accept: "text/html,application/xhtml+xml" }, signal });
+  if (!response.ok) throw httpError(response.status);
+  const html = (await response.text()).slice(0, 600_000);
+  const links = extractLinks(html, url.toString());
+  const content = links.length ? links.map((link) => `- ${link.text || "(başlıksız)"}\n  ${link.url}`).join("\n") : "Sayfada bağlantı bulunamadı.";
+  return { ok: true, content: content.slice(0, 20_000), metadata: { count: links.length, source: url.toString() } };
 }
 
 export function makeArtifactName(instruction: string): string {
   const tokens = instruction.split(/\s+/).slice(0, 5).join("-");
   return sanitizeFileName(tokens || "agent-output", "agent-output.md").replace(/\.(?!md$)[^.]+$/, "") + ".md";
+}
+
+/** Local, side-effect-free text utility used by the `text.transform` native tool. */
+export function sanitizeTextTransform(text: string): { title: string; filename: string } {
+  const clean = text.trim().replace(/\s+/g, " ").slice(0, 120);
+  const title = clean ? clean[0].toUpperCase() + clean.slice(1) : "Başlıksız";
+  return { title, filename: makeArtifactName(text) };
 }

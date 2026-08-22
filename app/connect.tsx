@@ -11,6 +11,7 @@ import type { ProviderId } from "@/lib/agent/types";
 function inferProvider(key: string): ProviderId | undefined {
   if (/^sk-ant-/.test(key)) return "anthropic";
   if (/^sk-or-v1-/.test(key)) return "openrouter";
+  if (/^AIza[A-Za-z0-9_-]{30,}$/.test(key)) return "gemini";
   if (/^sk-/.test(key)) return "openai";
   return undefined;
 }
