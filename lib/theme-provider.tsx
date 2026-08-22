@@ -12,8 +12,9 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const systemScheme = useSystemColorScheme() ?? "light";
-  const [colorScheme, setColorSchemeState] = useState<ColorScheme>(systemScheme);
+  // Dark-first: the app defaults to dark regardless of system setting (product choice).
+  useSystemColorScheme();
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>("dark");
 
   const applyScheme = useCallback((scheme: ColorScheme) => {
     nativewindColorScheme.set(scheme);
