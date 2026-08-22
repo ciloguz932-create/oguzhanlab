@@ -7,7 +7,7 @@ import { ScreenContainer } from "@/components/screen-container";
 import { useAgent } from "@/lib/agent/agent-provider";
 import type { AgentRun } from "@/lib/agent/types";
 
-function runTone(status: AgentRun["status"]): "success" | "warning" | "error" | "info" | "neutral" { return status === "completed" ? "success" : status === "failed" ? "error" : status === "waiting_for_permission" ? "warning" : status === "running" || status === "planning" ? "info" : "neutral"; }
+function runTone(status: AgentRun["status"]): "success" | "warning" | "error" | "info" | "neutral" { return status === "completed" ? "success" : status === "failed" ? "error" : status === "waiting_for_permission" ? "warning" : status === "running" || status === "planning" || status === "queued" ? "info" : "neutral"; }
 
 export default function HomeScreen() {
   const { state, activeWorkspace } = useAgent();

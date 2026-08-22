@@ -34,6 +34,7 @@ export const initialAppState = (): AppState => ({
   },
   offlineMode: false,
   debugMode: false,
+  notificationsEnabled: false,
 });
 
 export class LocalStateRepository {

@@ -16,7 +16,7 @@ export type TaskKind = "analysis" | "research" | "generation" | "artifact" | "ve
 export type RiskLevel = "low" | "medium" | "high" | "critical";
 export type ModelRequirement = "fast" | "reasoning" | "coding" | "vision";
 export type PermissionDecision = "ask" | "allow" | "deny";
-export type RunStatus = "idle" | "planning" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled";
+export type RunStatus = "idle" | "queued" | "planning" | "running" | "waiting_for_permission" | "completed" | "failed" | "cancelled";
 export type ArtifactKind = "markdown" | "text" | "json" | "code" | "report";
 export type McpTransport = "streamable-http" | "stdio";
 export type McpAuthType = "none" | "bearer" | "oauth-pkce";
@@ -241,6 +241,7 @@ export interface AppState {
   pendingPermission?: PermissionRequest;
   offlineMode: boolean;
   debugMode: boolean;
+  notificationsEnabled: boolean;
 }
 
 export interface ProviderUsage {

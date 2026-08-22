@@ -84,14 +84,15 @@ Tüm uygulama durumu (`AppState`) AsyncStorage'da saklanır; kimlik bilgileri ay
 - **Otonom MCP tool seçimi**: MCP araçları native araçlarla aynı katalogda; agent bunları planlama sırasında kendisi seçip çağırır.
 - **Yetenek (Skill) sistemi**: hedefe göre otomatik seçilen, sistem istemine talimat enjekte eden ve model tercihini biçimlendiren yeniden kullanılabilir uzmanlık paketleri; yerleşik + kullanıcı tanımlı, Yetenekler ekranından yönetilir (`skills.ts`).
 
-## Uygulandı (Phase 4–5)
+## Uygulandı (Phase 4–6)
 
 - **Entegrasyon çerçevesi** + yerleşik GitHub (PAT) ve E-posta (Resend) entegrasyonları; `web.fetch` ile derin araştırma. GitHub/E-posta yetenekleri. Bkz. `INTEGRATIONS.md`.
 - **Alt-agent'lar**: `agent.spawn` ile rol tabanlı, salt-okunur, bütçeli, özyinelemeye kapalı delegasyon; Orkestratör yeteneği. Bkz. `SUBAGENTS.md`.
+- **Dayanıklı yürütme**: transcript checkpoint'i, yeniden başlatmada `queued`'e alma, ön plana gelince otomatik devam, `expo-keep-awake` ve tamamlama/izin için yerel bildirimler. OS sınırları dürüstçe belgelendi. Bkz. `BACKGROUND.md`.
 
 ## Planlı (henüz uygulanmadı — uydurulmadı)
 
 - MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme (Gmail/Drive native entegrasyonlarının önkoşulu).
-- Arka plan yürütme (Phase 6), tarayıcı ajanı (Phase 7), yerel model inference.
+- Tarayıcı ajanı (Phase 7), yerel model inference (Phase 8), sunucu tarafı arka plan (Phase 9).
 
 Bu yetenekler için sözleşmeler (`ProviderAdapter`, `ToolRegistry`, `McpAuthType`) hazırdır; eklenmeleri çekirdeği yeniden yazmayı gerektirmez.

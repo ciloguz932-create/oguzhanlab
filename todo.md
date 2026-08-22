@@ -50,9 +50,18 @@
 - [x] Bütçe (maxSteps/maxToolCalls, çalışma başına en fazla 4 alt-agent) ve paylaşılan iptal
 - [x] Orkestratör yeteneği; alt-agent birim testleri (7 test); SUBAGENTS.md
 
+## Phase 6 — Dayanıklı / arka plan yürütme
+- [x] Döngü içi transcript checkpoint'i (onProgress) ile dayanıklılık
+- [x] Yeniden başlatmada checkpoint'li çalışmaları queued'e alma, checkpoint'siz olanları failed
+- [x] Ön plana gelince (AppState) ve soğuk başlatmada queued çalışmaları otomatik devam
+- [x] expo-keep-awake ile aktif çalışma sırasında ekranı açık tutma
+- [x] Tamamlama/başarısızlık/izin için yerel bildirimler (expo-notifications, opt-in)
+- [x] OS sınırlarının dürüst belgelenmesi (BACKGROUND.md); +2 test (queued/onProgress)
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 6: Arka plan yürütme
 - [ ] Phase 7: Tarayıcı ajanı
+- [ ] Phase 8: Fable / uzman modeller
+- [ ] Phase 9: Bulut dağıtımı + kendi Agent API'si (gerçek sunucu tarafı arka plan)
 - [ ] MCP OAuth 2.1/PKCE (Gmail/Drive native entegrasyonlarının önkoşulu)
 - [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme

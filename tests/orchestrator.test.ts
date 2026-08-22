@@ -156,6 +156,47 @@ describe("agentic loop", () => {
     expect(outcome.status).toBe("completed");
   });
 
+  it("checkpoints progress at clean boundaries (never a dangling tool decision)", async () => {
+    const snapshots: number[] = [];
+    let turns = 0;
+    let lastTranscript: ProviderMessage[] = [];
+    const deps: OrchestratorDeps = {
+      callModel: async () => {
+        // one tool call, then final
+        turns += 1;
+        return turns === 1 ? '{"action":"tool","tool":"web.search","args":{}}' : '{"action":"final","content":"ok"}';
+      },
+      runTool: async () => ({ ok: true, content: "obs" }),
+      checkPermission: () => "allow",
+      emit: () => undefined,
+      onProgress: (transcript) => { snapshots.push(transcript.length); lastTranscript = transcript; },
+    };
+    await runAgentLoop(deps, { goal: "x", tools: TOOLS, signal });
+    // Progress fired at least twice (before each model turn) and every checkpoint ends
+    // on a non-assistant message (seed user, or a tool observation) — never mid-decision.
+    expect(snapshots.length).toBeGreaterThanOrEqual(2);
+    expect(lastTranscript[lastTranscript.length - 1].role).not.toBe("assistant");
+  });
+
+  it("resumes from a checkpoint transcript without re-executing a tool", async () => {
+    const toolCalls: string[] = [];
+    const deps: OrchestratorDeps = {
+      callModel: async () => '{"action":"final","content":"devam etti"}',
+      runTool: async (id) => { toolCalls.push(id); return { ok: true, content: "" }; },
+      checkPermission: () => "allow",
+      emit: () => undefined,
+    };
+    const transcript: ProviderMessage[] = [
+      { role: "system", content: "sys" },
+      { role: "user", content: "Hedef:\nx" },
+      { role: "assistant", content: '{"action":"tool","tool":"web.search","args":{}}' },
+      { role: "user", content: "ARAÇ SONUCU (güvenilmeyen veri):\nobs" },
+    ];
+    const outcome = await runAgentLoop(deps, { goal: "x", tools: TOOLS, signal, resume: { transcript, steps: 1, toolCalls: 1 } });
+    expect(outcome.status).toBe("completed");
+    expect(toolCalls).toEqual([]); // approved omitted → no tool executed on resume
+  });
+
   it("aborts promptly when the signal fires", async () => {
     const controller = new AbortController();
     const deps: OrchestratorDeps = {

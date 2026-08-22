@@ -23,6 +23,13 @@ export interface OrchestratorDeps {
   checkPermission: (toolId: string) => PermissionGate;
   /** Emits a runtime event for the activity timeline. */
   emit: (event: { type: OrchestratorEventType; summary: string; level: "info" | "success" | "warning" | "error"; details?: Record<string, unknown> }) => void;
+  /**
+   * Optional durable checkpoint, invoked at a clean loop boundary (the model's turn is
+   * next) with the current transcript and counters. Lets the caller persist progress so
+   * a run killed mid-loop can resume from here instead of restarting. Never called with
+   * a dangling, un-observed tool decision.
+   */
+  onProgress?: (transcript: ProviderMessage[], steps: number, toolCalls: number) => void;
 }
 
 export type OrchestratorEventType =
@@ -199,6 +206,12 @@ export async function runAgentLoop(deps: OrchestratorDeps, input: RunInput): Pro
       return { status: "completed", content: lastAssistantText.trim() || "Agent adım sınırında sonlandı; kısmi sonuç üretildi.", transcript: messages, steps, toolCalls };
     }
     if (steps >= limits.maxSteps && !forcedFinal) forcedFinal = true;
+
+    // Checkpoint at a clean boundary: the transcript here ends with an observation,
+    // a corrective note, or the seed — never an un-executed tool decision — so a
+    // resume from this point continues correctly by asking the model again. A copy is
+    // passed so the stored checkpoint is an immutable snapshot, not the live array.
+    deps.onProgress?.([...messages], steps, toolCalls);
 
     if (forcedFinal) {
       messages.push({ role: "user", content: "Adım sınırına ulaşıldı. Artık araç çağırma; elindeki bilgiyle YALNIZCA {\"action\":\"final\",\"content\":\"...\"} biçiminde nihai yanıtı ver." });

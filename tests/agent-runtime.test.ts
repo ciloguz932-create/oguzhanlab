@@ -4,7 +4,7 @@ import { AgentError, backoffDelayMs, classifyError, httpError, sleep, withRetry 
 import { classifyModel, selectModel } from "../lib/agent/model-router";
 import { McpClient } from "../lib/agent/mcp";
 import { ProviderRegistry } from "../lib/agent/providers";
-import { recoverInterruptedRuns } from "../lib/agent/recovery";
+import { queuedRunIds, recoverInterruptedRuns } from "../lib/agent/recovery";
 import { addUsage, emptyTotals, estimateCostUsd } from "../lib/agent/usage";
 import type { AppState, McpServerConfig, ProviderModel } from "../lib/agent/types";
 
@@ -109,7 +109,7 @@ describe("interrupted run recovery", () => {
   it("marks in-flight runs recoverable and preserves completed work", () => {
     const base: AppState = {
       version: 1, initialized: true, workspaces: [], connections: [], messages: [], events: [], artifacts: [], mcpServers: [], skills: [], integrations: [],
-      permissionPolicies: {}, offlineMode: false, debugMode: false,
+      permissionPolicies: {}, offlineMode: false, debugMode: false, notificationsEnabled: false,
       runs: [{
         id: "run1", workspaceId: "w1", instruction: "x", status: "running", startedAt: "t", artifactIds: [],
         graph: { id: "g", rootTaskId: "a", createdAt: "t", updatedAt: "t", tasks: [
@@ -118,6 +118,7 @@ describe("interrupted run recovery", () => {
         ] },
       }],
     };
+    // No checkpoint transcript → not resumable → failed (retryable), tasks reset.
     const recovered = recoverInterruptedRuns(base);
     expect(recovered.runs[0].status).toBe("failed");
     expect(recovered.runs[0].graph.tasks[0].status).toBe("completed");
@@ -125,6 +126,21 @@ describe("interrupted run recovery", () => {
     // A settled state is returned unchanged (referential identity preserved).
     const settled = { ...base, runs: [{ ...base.runs[0], status: "completed" as const }] };
     expect(recoverInterruptedRuns(settled)).toBe(settled);
+  });
+
+  it("queues checkpointed runs for resume and leaves waiting-for-permission alone", () => {
+    const base: AppState = {
+      version: 1, initialized: true, workspaces: [], connections: [], messages: [], events: [], artifacts: [], mcpServers: [], skills: [], integrations: [],
+      permissionPolicies: {}, offlineMode: false, debugMode: false, notificationsEnabled: false,
+      runs: [
+        { id: "r1", workspaceId: "w", instruction: "x", status: "running", startedAt: "t", artifactIds: [], transcript: [{ role: "user", content: "x" }], graph: { id: "g1", rootTaskId: "a", createdAt: "t", updatedAt: "t", tasks: [] } },
+        { id: "r2", workspaceId: "w", instruction: "y", status: "waiting_for_permission", startedAt: "t", artifactIds: [], transcript: [{ role: "user", content: "y" }], graph: { id: "g2", rootTaskId: "b", createdAt: "t", updatedAt: "t", tasks: [] } },
+      ],
+    };
+    const recovered = recoverInterruptedRuns(base);
+    expect(recovered.runs[0].status).toBe("queued");
+    expect(recovered.runs[1].status).toBe("waiting_for_permission"); // untouched
+    expect(queuedRunIds(recovered)).toEqual(["r1"]);
   });
 });
 

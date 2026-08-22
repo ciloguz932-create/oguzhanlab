@@ -9,7 +9,7 @@ import { useAgent } from "@/lib/agent/agent-provider";
 import { router } from "@/lib/navigator";
 import type { AgentRun, ActivityEvent, AgentTask } from "@/lib/agent/types";
 
-const statusTone = (status: AgentRun["status"]): "success" | "warning" | "error" | "info" | "neutral" => status === "completed" ? "success" : status === "failed" || status === "cancelled" ? "error" : status === "waiting_for_permission" ? "warning" : status === "running" || status === "planning" ? "info" : "neutral";
+const statusTone = (status: AgentRun["status"]): "success" | "warning" | "error" | "info" | "neutral" => status === "completed" ? "success" : status === "failed" || status === "cancelled" ? "error" : status === "waiting_for_permission" ? "warning" : status === "running" || status === "planning" || status === "queued" ? "info" : "neutral";
 const taskIcon = (status: AgentTask["status"]): keyof typeof MaterialIcons.glyphMap => status === "completed" ? "check-circle" : status === "failed" || status === "blocked" ? "cancel" : status === "running" ? "play-circle-outline" : status === "waiting_for_permission" ? "lock-clock" : "radio-button-unchecked";
 const eventIcon = (event: ActivityEvent): keyof typeof MaterialIcons.glyphMap => event.type === "PermissionRequested" ? "lock" : event.level === "error" ? "error-outline" : event.level === "success" ? "check-circle" : event.type.includes("Tool") ? "build" : "bolt";
 

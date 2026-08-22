@@ -1,4 +1,7 @@
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import * as Notifications from "expo-notifications";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from "react";
+import { AppState as RNAppState } from "react-native";
 
 import { ArtifactStore } from "./artifacts";
 import { withRetry } from "./errors";
@@ -11,6 +14,7 @@ import { ProviderRegistry } from "./providers";
 import { assertSafeRemoteUrl, makeId, safeErrorMessage } from "./security";
 import { makeCustomSkill, selectSkills, skillModelRequirement } from "./skills";
 import { isSubAgentRole, runSubAgent, SUBAGENT_ROLES } from "./subagents";
+import { queuedRunIds } from "./recovery";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
 import { executeWebFetch, executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
 import { addUsage, emptyTotals, estimateCostUsd } from "./usage";
@@ -49,6 +53,7 @@ interface AgentContextValue {
   retryRun: (runId: string) => Promise<void>;
   setOfflineMode: (value: boolean) => void;
   setDebugMode: (value: boolean) => void;
+  setNotificationsEnabled: (value: boolean) => Promise<void>;
   addMcpServer: (input: McpInput) => Promise<void>;
   discoverMcpTools: (serverId: string) => Promise<void>;
   invokeMcpTool: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<ToolResult>;
@@ -110,6 +115,27 @@ export function AgentProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (hydrated) repository.save(state).catch(() => undefined);
   }, [hydrated, repository, state]);
+
+  // Keep the device awake only while a run is actively executing, so long tasks are
+  // not killed by the screen locking while the app is foregrounded.
+  useEffect(() => {
+    const active = state.runs.some((run) => run.status === "running" || run.status === "planning");
+    if (active) activateKeepAwakeAsync("oguzhanlab-run").catch(() => undefined);
+    else deactivateKeepAwake("oguzhanlab-run").catch(() => undefined);
+  }, [state.runs]);
+
+  // Schedules a local notification, but only when enabled and the app is backgrounded
+  // (foreground already shows live state). Best-effort; never throws into the runtime.
+  const notify = useCallback(async (title: string, body: string) => {
+    if (!stateRef.current.notificationsEnabled || RNAppState.currentState === "active") return;
+    try {
+      const perms = await Notifications.getPermissionsAsync();
+      if (!perms.granted) return;
+      await Notifications.scheduleNotificationAsync({ content: { title, body: body.slice(0, 180) }, trigger: null });
+    } catch {
+      // Notifications are a convenience; failure must never affect the run.
+    }
+  }, []);
 
   const addEvent = useCallback((input: Omit<ActivityEvent, "id" | "createdAt">) => {
     const event: ActivityEvent = { ...input, id: makeId("event"), createdAt: now() };
@@ -356,6 +382,9 @@ export function AgentProvider({ children }: PropsWithChildren) {
       checkPermission: (toolId: string): PermissionGate => gateFor(runId, workspaceId, toolId),
       emit: (event: { type: ActivityEvent["type"] | string; summary: string; level: ActivityEvent["level"]; details?: Record<string, unknown> }) =>
         addEvent({ runId, type: (event.type as ActivityEvent["type"]) ?? "ModelResponse", summary: event.summary, level: event.level, details: event.details }),
+      // Durable checkpoint: persist transcript + counters at each clean boundary so a
+      // run interrupted by app suspension resumes from here on next foreground.
+      onProgress: (transcript: ProviderMessage[], steps: number, toolCalls: number) => updateRun(runId, { transcript, steps, toolCalls }),
     };
 
     // Mark the outline: understanding done, action stage active.
@@ -378,6 +407,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
         apply((current) => ({ ...current, pendingPermission: request }));
         setRunStatus(runId, "waiting_for_permission");
         addEvent({ runId, taskId: act?.id, type: "PermissionRequested", summary: `${definition?.title ?? outcome.pending.toolId} için izin bekleniyor.`, level: "warning" });
+        void notify("İzin gerekli", `${run.instruction.slice(0, 80)} — ${definition?.title ?? outcome.pending.toolId} için onay bekliyor.`);
         return;
       }
 
@@ -389,12 +419,14 @@ export function AgentProvider({ children }: PropsWithChildren) {
         if (produce) updateTask(runId, produce.id, { status: "completed", output: outcome.content.slice(0, 400) });
         setRunStatus(runId, "completed");
         addEvent({ runId, type: "VerificationCompleted", summary: "Agent görevi tamamladı.", level: "success" });
+        void notify("Görev tamamlandı", run.instruction);
       } else {
         const reason = outcome.error;
         if (act) updateTask(runId, act.id, { status: "failed", error: reason });
         setRunStatus(runId, "failed", reason);
         addEvent({ runId, type: "TaskFailed", summary: reason, level: "error" });
         addMessage({ workspaceId, runId, role: "agent", content: `Görev tamamlanamadı: ${reason}`, status: "error" });
+        void notify("Görev başarısız", reason);
       }
     } catch (error) {
       const reason = safeErrorMessage(error);
@@ -407,11 +439,34 @@ export function AgentProvider({ children }: PropsWithChildren) {
         setRunStatus(runId, "failed", reason);
         addEvent({ runId, type: "TaskFailed", summary: reason, level: "error" });
         addMessage({ workspaceId, runId, role: "agent", content: `Görev tamamlanamadı: ${reason}`, status: "error" });
+        void notify("Görev başarısız", reason);
       }
     } finally {
       controllers.current.delete(runId);
     }
-  }, [accrueUsage, addEvent, addMessage, apply, artifacts, buildCatalog, credentials, gateFor, mcp, outlineTask, providers, setRunStatus, tools, updateRun, updateTask]);
+  }, [accrueUsage, addEvent, addMessage, apply, artifacts, buildCatalog, credentials, gateFor, mcp, notify, outlineTask, providers, setRunStatus, tools, updateRun, updateTask]);
+
+  // Resumes durable runs left queued by app suspension. Skips any run already executing.
+  const resumeQueuedRuns = useCallback(() => {
+    for (const id of queuedRunIds(stateRef.current)) {
+      if (controllers.current.has(id)) continue;
+      setRunStatus(id, "planning");
+      void executeRun(id);
+    }
+  }, [executeRun, setRunStatus]);
+
+  // On cold start (once hydrated) and whenever the app returns to the foreground,
+  // resume any queued runs. This is the honest "background" model: work is durable and
+  // continues as soon as the app is active again (mobile OSes do not permit long-running
+  // background JS — see BACKGROUND.md).
+  useEffect(() => {
+    if (!hydrated) return;
+    resumeQueuedRuns();
+    const subscription = RNAppState.addEventListener("change", (next) => {
+      if (next === "active") resumeQueuedRuns();
+    });
+    return () => subscription.remove();
+  }, [hydrated, resumeQueuedRuns]);
 
   const submitInstruction = useCallback(async (instruction: string) => {
     const text = instruction.trim();
@@ -466,6 +521,19 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, [apply, executeRun]);
   const setOfflineMode = useCallback((value: boolean) => apply((current) => ({ ...current, offlineMode: value })), [apply]);
   const setDebugMode = useCallback((value: boolean) => apply((current) => ({ ...current, debugMode: value })), [apply]);
+  const setNotificationsEnabled = useCallback(async (value: boolean) => {
+    if (value) {
+      try {
+        const result = await Notifications.requestPermissionsAsync();
+        if (!result.granted) throw new Error("Bildirim izni verilmedi. Cihaz ayarlarından etkinleştirin.");
+      } catch (error) {
+        // Surface a permission failure but still record intent so the toggle reflects the OS state next time.
+        apply((current) => ({ ...current, notificationsEnabled: false }));
+        throw error instanceof Error ? error : new Error("Bildirim izni alınamadı.");
+      }
+    }
+    apply((current) => ({ ...current, notificationsEnabled: value }));
+  }, [apply]);
 
   const addMcpServer = useCallback(async ({ name, endpoint, authType, token }: McpInput) => {
     // Reject unsafe endpoints (non-HTTPS, private ranges, embedded credentials) before storing anything.
@@ -558,7 +626,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, [credentials, repository]);
 
   const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId);
-  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
+  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, setNotificationsEnabled, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setNotificationsEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
 }
 
