@@ -56,12 +56,17 @@ jobs:
             echo "::error::EXPO_OWNER variable is missing. Set it to your Expo account (or org) username under Actions → Variables."
             exit 1
           fi
+          if [ -z "${{ vars.EXPO_SLUG }}" ]; then
+            echo "::error::EXPO_SLUG variable is missing. Set it to the slug of the Expo project that EAS_PROJECT_ID points to (e.g. agent-build) under Actions → Variables."
+            exit 1
+          fi
 
       - name: Build APK on EAS
         id: build
         env:
           EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
           EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+          EXPO_SLUG: ${{ vars.EXPO_SLUG }}
         run: |
           set -euo pipefail
           eas build --platform android --profile "${{ inputs.profile }}" --non-interactive --wait --json > build.json
@@ -70,8 +75,9 @@ jobs:
             const b = Array.isArray(builds) ? builds[0] : builds;
             const a = b && b.artifacts ? b.artifacts : {};
             const download = a.applicationArchiveUrl || a.buildUrl || "";
+            const slug = process.env.EXPO_SLUG || "oguzhanlab-mobile";
             const page = b && b.id && process.env.EXPO_OWNER
-              ? `https://expo.dev/accounts/${process.env.EXPO_OWNER}/projects/oguzhanlab-mobile/builds/${b.id}`
+              ? `https://expo.dev/accounts/${process.env.EXPO_OWNER}/projects/${slug}/builds/${b.id}`
               : "";
             const fs = require("fs");
             fs.appendFileSync(process.env.GITHUB_OUTPUT, `download=${download}\n`);

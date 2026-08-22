@@ -11,6 +11,7 @@ Bir **ücretsiz Expo hesabı** gerekir (expo.dev). Ardından bu depoda GitHub'da
 | `EXPO_TOKEN` | **Secret** | expo.dev → Account → **Access Tokens** → yeni token | ✅ Evet (gizli) |
 | `EAS_PROJECT_ID` | **Variable** | expo.dev'de bir proje oluştur → proje ayarlarındaki **Project ID** | Hayır |
 | `EXPO_OWNER` | **Variable** | Expo kullanıcı adın (veya organizasyon adın) | Hayır |
+| `EXPO_SLUG` | **Variable** | O projenin **slug**'ı (ör. `agent-build`). `EAS_PROJECT_ID` hangi projeyi gösteriyorsa onun slug'ıyla **birebir aynı** olmalı. | Hayır |
 
 > `EAS_PROJECT_ID`'yi terminalsiz almanın yolu: expo.dev → **Projects → Create a project** → oluşan projenin ID'sini kopyala. (Alternatif: bir bilgisayarda `eas init` — ama gerekmez.)
 >

@@ -29,7 +29,9 @@ const schemeFromBundleId = `manus${timestamp}`;
 const env = {
   // App branding - update these values directly (do not use env vars)
   appName: "OguzhanLab Agent",
-  appSlug: "oguzhanlab-mobile",
+  // Must equal the slug of the Expo project referenced by EAS_PROJECT_ID. Overridable
+  // via EXPO_SLUG (CI variable) so the repo isn't tied to one Expo project.
+  appSlug: process.env.EXPO_SLUG || "oguzhanlab-mobile",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
   logoUrl: "/manus-storage/oguzhanlab-agent-icon_189e2235.png",
