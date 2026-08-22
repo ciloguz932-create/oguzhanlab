@@ -11,7 +11,6 @@ function RootNavigator() {
   return <Stack initialRouteName={state.connections.length ? "(tabs)" : "connect"} screenOptions={{ headerBackTitle: "Geri", headerTintColor: palette.blue, headerTitleStyle: { color: palette.navy, fontWeight: "800" }, contentStyle: { backgroundColor: palette.background } }}>
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     <Stack.Screen name="connect" options={{ headerShown: false, gestureEnabled: false }} />
-    <Stack.Screen name="agent" options={{ title: "Agent Çalışması" }} />
     <Stack.Screen name="artifact" options={{ title: "Artifact" }} />
     <Stack.Screen name="providers" options={{ title: "AI Sağlayıcıları" }} />
     <Stack.Screen name="mcp" options={{ title: "MCP Sunucuları" }} />
