@@ -58,10 +58,16 @@
 - [x] Tamamlama/başarısızlık/izin için yerel bildirimler (expo-notifications, opt-in)
 - [x] OS sınırlarının dürüst belgelenmesi (BACKGROUND.md); +2 test (queued/onProgress)
 
+## Phase 7 — Web gezinme / tarayıcı ajanı
+- [x] web.extractLinks (sayfa bağlantılarını çıkar) + HTTP tabanlı gezinme
+- [x] Araştırma Alt-Agent'a gezinme; Web Gezgini yerleşik yeteneği
+- [x] SSRF koruması, çevrimdışı devre dışı bırakma, izin kapısı
+- [x] Gerçek tarayıcı otomasyonu için uzak tarayıcı-MCP seam'i (BROWSER.md); +4 test
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 7: Tarayıcı ajanı
 - [ ] Phase 8: Fable / uzman modeller
 - [ ] Phase 9: Bulut dağıtımı + kendi Agent API'si (gerçek sunucu tarafı arka plan)
+- [ ] Uzak tarayıcı-MCP entegrasyonu (JS render / tıklama / ekran görüntüsü)
 - [ ] MCP OAuth 2.1/PKCE (Gmail/Drive native entegrasyonlarının önkoşulu)
 - [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme

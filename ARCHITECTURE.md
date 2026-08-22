@@ -89,10 +89,11 @@ Tüm uygulama durumu (`AppState`) AsyncStorage'da saklanır; kimlik bilgileri ay
 - **Entegrasyon çerçevesi** + yerleşik GitHub (PAT) ve E-posta (Resend) entegrasyonları; `web.fetch` ile derin araştırma. GitHub/E-posta yetenekleri. Bkz. `INTEGRATIONS.md`.
 - **Alt-agent'lar**: `agent.spawn` ile rol tabanlı, salt-okunur, bütçeli, özyinelemeye kapalı delegasyon; Orkestratör yeteneği. Bkz. `SUBAGENTS.md`.
 - **Dayanıklı yürütme**: transcript checkpoint'i, yeniden başlatmada `queued`'e alma, ön plana gelince otomatik devam, `expo-keep-awake` ve tamamlama/izin için yerel bildirimler. OS sınırları dürüstçe belgelendi. Bkz. `BACKGROUND.md`.
+- **Web gezinme (Phase 7)**: `web.fetch` + `web.extractLinks` ile HTTP tabanlı gezinme; Web Gezgini yeteneği ve Araştırma Alt-Agent. Gerçek tarayıcı otomasyonu uzak tarayıcı-MCP ile eklenir. Bkz. `BROWSER.md`.
 
 ## Planlı (henüz uygulanmadı — uydurulmadı)
 
 - MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme (Gmail/Drive native entegrasyonlarının önkoşulu).
-- Tarayıcı ajanı (Phase 7), yerel model inference (Phase 8), sunucu tarafı arka plan (Phase 9).
+- Cihaz içi gerçek tarayıcı otomasyonu yerine uzak tarayıcı-MCP; yerel model inference (Phase 8), sunucu tarafı arka plan (Phase 9).
 
 Bu yetenekler için sözleşmeler (`ProviderAdapter`, `ToolRegistry`, `McpAuthType`) hazırdır; eklenmeleri çekirdeği yeniden yazmayı gerektirmez.

@@ -5,6 +5,7 @@ import type { ToolDefinition, ToolResult } from "./types";
 export const nativeTools: ToolDefinition[] = [
   { id: "web.search", title: "Web araştırması", description: "Açık webde başlangıç kaynağı arar.", source: "native", risk: "medium", inputSchema: { query: "string" } },
   { id: "web.fetch", title: "Web sayfası getir", description: "Bir HTTPS URL'sini getirir ve okunabilir metne dönüştürür.", source: "native", risk: "medium", inputSchema: { url: "string" } },
+  { id: "web.extractLinks", title: "Sayfa bağlantılarını çıkar", description: "Bir HTTPS sayfasındaki bağlantıları (metin + URL) listeler; gezinmek için kullanılır.", source: "native", risk: "medium", inputSchema: { url: "string" } },
   { id: "text.transform", title: "Metin işleme", description: "Yerel metni başlık ve dosya adına dönüştürür.", source: "native", risk: "low", inputSchema: { text: "string" } },
   { id: "calculator.evaluate", title: "Hesap makinesi", description: "Kısıtlı aritmetik ifadeyi yerelde hesaplar.", source: "native", risk: "low", inputSchema: { expression: "string" } },
   { id: "filesystem.writeMarkdown", title: "Markdown dosyası yaz", description: "Workspace içinde güvenli Markdown artifact’i üretir.", source: "native", risk: "medium", inputSchema: { filename: "string", content: "string" } },
@@ -117,6 +118,47 @@ export async function executeWebFetch(rawUrl: string, signal?: AbortSignal): Pro
   const contentType = response.headers.get("content-type") ?? "";
   const text = /html|xml/.test(contentType) ? htmlToText(raw) : raw;
   return { ok: true, content: text.slice(0, 20_000), metadata: { url: url.toString(), truncated: text.length > 20_000 } };
+}
+
+/**
+ * Extracts navigable links (absolute http(s) URL + link text) from an HTML page,
+ * resolving relative hrefs against the page URL. Returned as data only — the agent
+ * must call web.fetch on a chosen link, which re-applies the SSRF guard.
+ */
+export function extractLinks(html: string, baseUrl: string, limit = 50): Array<{ url: string; text: string }> {
+  const results: Array<{ url: string; text: string }> = [];
+  const seen = new Set<string>();
+  const pattern = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = pattern.exec(html)) && results.length < limit) {
+    let absolute: string;
+    try {
+      absolute = new URL(match[1], baseUrl).toString();
+    } catch {
+      continue;
+    }
+    if (!/^https?:/i.test(absolute)) continue;
+    const normalized = absolute.split("#")[0];
+    if (seen.has(normalized)) continue;
+    seen.add(normalized);
+    const text = htmlToText(match[2]).replace(/\s+/g, " ").trim().slice(0, 120);
+    results.push({ url: normalized, text });
+  }
+  return results;
+}
+
+/**
+ * Fetches an HTTPS page and returns its navigable links. SSRF-guarded on the fetched
+ * URL; throws on transport/HTTP failure so callers can retry transient errors.
+ */
+export async function executeWebExtractLinks(rawUrl: string, signal?: AbortSignal): Promise<ToolResult> {
+  const url = assertSafeRemoteUrl(rawUrl.trim());
+  const response = await fetch(url.toString(), { headers: { Accept: "text/html,application/xhtml+xml" }, signal });
+  if (!response.ok) throw httpError(response.status);
+  const html = (await response.text()).slice(0, 600_000);
+  const links = extractLinks(html, url.toString());
+  const content = links.length ? links.map((link) => `- ${link.text || "(başlıksız)"}\n  ${link.url}`).join("\n") : "Sayfada bağlantı bulunamadı.";
+  return { ok: true, content: content.slice(0, 20_000), metadata: { count: links.length, source: url.toString() } };
 }
 
 export function makeArtifactName(instruction: string): string {

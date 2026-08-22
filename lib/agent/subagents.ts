@@ -19,8 +19,8 @@ export const SUBAGENT_ROLES: Record<SubAgentRole, RoleDef> = {
   research: {
     name: "Araştırma Alt-Agent",
     instructions:
-      "Sen odaklı bir araştırma alt-agent'ısın. Verilen alt görevi web.search ile ara, umut vaadeden kaynakları web.fetch ile oku, bulguları KISA ve kaynaklı bir özet olarak döndür. Yalnızca bu alt göreve odaklan; kapsam dışına çıkma.",
-    toolIds: ["web.search", "web.fetch"],
+      "Sen odaklı bir araştırma/gezinme alt-agent'ısın. web.search ile başlangıç kaynakları bul, web.fetch ile sayfaları oku ve gerektiğinde web.extractLinks ile bir sayfadaki bağlantıları çıkarıp ilgili olanları takip et (HTTP üzerinden gezinme). Bulguları KISA ve kaynaklı bir özet olarak döndür. Yalnızca bu alt göreve odaklan.",
+    toolIds: ["web.search", "web.fetch", "web.extractLinks"],
   },
   coding: {
     name: "Kod İnceleme Alt-Agent",

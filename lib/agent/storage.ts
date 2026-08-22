@@ -31,6 +31,7 @@ export const initialAppState = (): AppState => ({
     "global:calculator.evaluate": "allow",
     "global:web.search": "ask",
     "global:web.fetch": "ask",
+    "global:web.extractLinks": "ask",
   },
   offlineMode: false,
   debugMode: false,

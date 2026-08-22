@@ -16,7 +16,7 @@ import { makeCustomSkill, selectSkills, skillModelRequirement } from "./skills";
 import { isSubAgentRole, runSubAgent, SUBAGENT_ROLES } from "./subagents";
 import { queuedRunIds } from "./recovery";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
-import { executeWebFetch, executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
+import { executeWebExtractLinks, executeWebFetch, executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
 import { addUsage, emptyTotals, estimateCostUsd } from "./usage";
 import type { ActivityEvent, AgentRun, AgentTask, AppState, Artifact, ChatMessage, IntegrationId, McpAuthType, McpServerConfig, ModelRequirement, PermissionDecision, PermissionRequest, ProviderConnection, ProviderId, ProviderMessage, ProviderUsage, RunStatus, Skill, TaskGraph, TaskKind, TaskStatus, ToolResult, Workspace } from "./types";
 
@@ -234,7 +234,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   const buildCatalog = useCallback((): AgentTool[] => {
     const offline = stateRef.current.offlineMode;
     const activeIntegrations = new Set(stateRef.current.integrations.filter((config) => config.enabled && config.connected).map((config) => config.id));
-    const networkNative = new Set(["web.search", "web.fetch", "agent.spawn"]);
+    const networkNative = new Set(["web.search", "web.fetch", "web.extractLinks", "agent.spawn"]);
     return tools.list()
       .filter((tool) => {
         if (offline && (networkNative.has(tool.id) || tool.source === "mcp" || tool.source === "integration")) return false;
@@ -297,6 +297,10 @@ export function AgentProvider({ children }: PropsWithChildren) {
         if (toolId === "web.fetch") {
           if (stateRef.current.offlineMode) return { ok: false, content: "", error: "Çevrimdışı modda web getirme kullanılamaz." };
           return await withRetry<ToolResult>(() => executeWebFetch(String(args.url ?? ""), signal), { retries: MAX_TRANSIENT_RETRIES, signal });
+        }
+        if (toolId === "web.extractLinks") {
+          if (stateRef.current.offlineMode) return { ok: false, content: "", error: "Çevrimdışı modda gezinme kullanılamaz." };
+          return await withRetry<ToolResult>(() => executeWebExtractLinks(String(args.url ?? ""), signal), { retries: MAX_TRANSIENT_RETRIES, signal });
         }
         if (toolId === "calculator.evaluate") {
           return { ok: true, content: String(safeCalculate(String(args.expression ?? ""))) };
