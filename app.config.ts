@@ -136,6 +136,10 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  // OTA (EAS Update): JS/UI changes reach installed apps on reopen without a rebuild.
+  // The update URL is derived from the EAS project id (CI env); undefined locally.
+  ...(easProjectId ? { updates: { url: `https://u.expo.dev/${easProjectId}` } } : {}),
+  runtimeVersion: { policy: "appVersion" },
   experiments: {
     typedRoutes: true,
     reactCompiler: true,

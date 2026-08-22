@@ -1,0 +1,60 @@
+name: EAS Update (OTA)
+
+# Pushes a JS/UI over-the-air update to already-installed apps built on the same
+# runtimeVersion + channel. No new APK needed — reopen the app to get it.
+# Use for pure JS/UI changes (colors, layout, logic). Native/config changes still
+# need a fresh build via "EAS Android Build".
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Update branch (must match the installed build's channel)"
+        type: choice
+        options:
+          - preview
+          - production
+        default: preview
+      message:
+        description: "Update message"
+        type: string
+        default: "UI update"
+
+jobs:
+  update:
+    name: Publish OTA update (${{ inputs.branch }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Verify EAS credentials
+        run: |
+          if [ -z "${{ secrets.EXPO_TOKEN }}" ] || [ -z "${{ vars.EAS_PROJECT_ID }}" ] || [ -z "${{ vars.EXPO_OWNER }}" ] || [ -z "${{ vars.EXPO_SLUG }}" ]; then
+            echo "::error::EXPO_TOKEN (secret) + EAS_PROJECT_ID / EXPO_OWNER / EXPO_SLUG (variables) are required. See BUILD_ANDROID.md."
+            exit 1
+          fi
+      - name: Publish update
+        env:
+          EAS_PROJECT_ID: ${{ vars.EAS_PROJECT_ID }}
+          EXPO_OWNER: ${{ vars.EXPO_OWNER }}
+          EXPO_SLUG: ${{ vars.EXPO_SLUG }}
+        run: eas update --branch "${{ inputs.branch }}" --message "${{ inputs.message }}" --non-interactive
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## 📡 OTA güncelleme yayınlandı (${{ inputs.branch }})"
+            echo ""
+            echo "Aynı sürümdeki kurulu uygulamayı **kapatıp aç** — güncelleme iner. Yeni APK gerekmez."
+            echo "> Yalnızca JS/UI değişiklikleri için. Native/yapılandırma değişikliği yeni build ister."
+          } >> "$GITHUB_STEP_SUMMARY"
