@@ -35,6 +35,8 @@ export interface ProviderConnection {
   status: ConnectionState;
   models: ProviderModel[];
   defaultModel: string;
+  // User-pinned specialist model per requirement tier; overrides router heuristics.
+  modelOverrides?: Partial<Record<ModelRequirement, string>>;
   createdAt: string;
   lastValidatedAt?: string;
   lastError?: string;

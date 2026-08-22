@@ -28,12 +28,31 @@ describe("model router", () => {
     // Empty model list returns the default rather than throwing.
     expect(selectModel([], "reasoning", "fallback")).toBe("fallback");
   });
+
+  it("classifies and routes current-gen Anthropic models (incl. Fable)", () => {
+    expect(classifyModel(model("claude-fable-5")).reasoning).toBe(true);
+    expect(classifyModel(model("claude-fable-5")).vision).toBe(true);
+    expect(classifyModel(model("claude-haiku-4-5")).fast).toBe(true);
+    const models = [model("claude-haiku-4-5"), model("claude-sonnet-5"), model("claude-fable-5")];
+    expect(selectModel(models, "fast", "claude-fable-5")).toBe("claude-haiku-4-5");
+    expect(selectModel(models, "reasoning", "claude-haiku-4-5")).not.toBe("claude-haiku-4-5");
+  });
+
+  it("honors a valid user override and ignores an invalid one", () => {
+    const models = [model("gpt-4o-mini"), model("gpt-4.1")];
+    // Valid pin wins over heuristics.
+    expect(selectModel(models, "fast", "gpt-4o-mini", "gpt-4.1")).toBe("gpt-4.1");
+    // A pin for a model the connection lacks is ignored (falls back to heuristics).
+    expect(selectModel(models, "fast", "gpt-4.1", "does-not-exist")).toBe("gpt-4o-mini");
+  });
 });
 
 describe("usage and cost estimation", () => {
   it("estimates cost from token usage and known prices", () => {
     const cost = estimateCostUsd("openai", "gpt-4o-mini", { inputTokens: 1_000_000, outputTokens: 1_000_000 });
     expect(cost).toBeCloseTo(0.75, 5);
+    // Claude Fable 5 list price: $10 in / $50 out per 1M.
+    expect(estimateCostUsd("anthropic", "claude-fable-5", { inputTokens: 1_000_000, outputTokens: 1_000_000 })).toBeCloseTo(60, 5);
   });
 
   it("returns undefined when the provider reports no usage", () => {

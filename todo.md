@@ -64,10 +64,15 @@
 - [x] SSRF koruması, çevrimdışı devre dışı bırakma, izin kapısı
 - [x] Gerçek tarayıcı otomasyonu için uzak tarayıcı-MCP seam'i (BROWSER.md); +4 test
 
+## Phase 8 — Fable / uzman modeller
+- [x] Tier bazlı model yönlendirme + kullanıcı sabitlemesi (override) her tier için
+- [x] Güncel Claude modelleri (Fable 5, Opus 5, Sonnet 5, Haiku 4.5) sezgi + fiyat tablosu
+- [x] Sağlayıcılar ekranında uzman model seçimi UI; MODELS.md; +2 test
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 8: Fable / uzman modeller
 - [ ] Phase 9: Bulut dağıtımı + kendi Agent API'si (gerçek sunucu tarafı arka plan)
 - [ ] Uzak tarayıcı-MCP entegrasyonu (JS render / tıklama / ekran görüntüsü)
+- [ ] Rol bazlı alt-agent model yönlendirme
 - [ ] MCP OAuth 2.1/PKCE (Gmail/Drive native entegrasyonlarının önkoşulu)
 - [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme

@@ -45,6 +45,7 @@ interface AgentContextValue {
   connect: (input: ConnectInput) => Promise<ProviderConnection>;
   disconnect: (connectionId: string) => Promise<void>;
   setDefaultModel: (connectionId: string, modelId: string) => void;
+  setModelOverride: (connectionId: string, requirement: ModelRequirement, modelId: string | undefined) => void;
   createWorkspace: (name: string, description?: string) => void;
   selectWorkspace: (workspaceId: string) => void;
   submitInstruction: (instruction: string) => Promise<void>;
@@ -208,6 +209,20 @@ export function AgentProvider({ children }: PropsWithChildren) {
     apply((current) => ({ ...current, connections: current.connections.map((connection) => connection.id === connectionId ? { ...connection, defaultModel: modelId } : connection) }));
   }, [apply]);
 
+  // Pins (or clears, when modelId is undefined) a specialist model for a requirement tier.
+  const setModelOverride = useCallback((connectionId: string, requirement: ModelRequirement, modelId: string | undefined) => {
+    apply((current) => ({
+      ...current,
+      connections: current.connections.map((connection) => {
+        if (connection.id !== connectionId) return connection;
+        const overrides = { ...(connection.modelOverrides ?? {}) };
+        if (modelId) overrides[requirement] = modelId;
+        else delete overrides[requirement];
+        return { ...connection, modelOverrides: overrides };
+      }),
+    }));
+  }, [apply]);
+
   const createWorkspace = useCallback((name: string, description?: string) => {
     const workspace: Workspace = { id: makeId("workspace"), name: name.trim() || "Yeni Workspace", description, createdAt: now(), updatedAt: now(), artifactIds: [], taskIds: [] };
     apply((current) => ({ ...current, activeWorkspaceId: workspace.id, workspaces: [...current.workspaces, workspace] }));
@@ -272,7 +287,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
     // Resolve the skills selected for this run; they inject expert instructions and can bias routing.
     const activeSkills = (run.activeSkillIds ?? []).map((id) => stateRef.current.skills.find((skill) => skill.id === id)).filter((skill): skill is Skill => Boolean(skill));
     const requirement: ModelRequirement = skillModelRequirement(activeSkills) ?? "reasoning";
-    const model = selectModel(connection.models, requirement, connection.defaultModel);
+    const model = selectModel(connection.models, requirement, connection.defaultModel, connection.modelOverrides?.[requirement]);
     if (model !== run.selectedModel) updateRun(runId, { selectedModel: model });
 
     // One reasoning turn: retried fully because a non-streaming model call has no side effects.
@@ -630,7 +645,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, [credentials, repository]);
 
   const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId);
-  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, setNotificationsEnabled, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setNotificationsEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
+  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, setModelOverride, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, setNotificationsEnabled, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setModelOverride, setNotificationsEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
 }
 

@@ -7,7 +7,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Alan | Uygulanan davranış |
 |---|---|
 | Sağlayıcılar | OpenAI, Anthropic, OpenRouter ve Google Gemini için ortak adapter sözleşmesi, anahtar biçiminden algılama, bağlantı doğrulama ve model listesi. Tüm sağlayıcılarda **gerçek streaming** (Anthropic ve Gemini için SSE). |
-| Model yönlendirme | Görevin gereksinimine (`fast`/`reasoning`/`coding`/`vision`) göre yetenek-farkında model seçimi; güvenli varsayılana düşme. |
+| Model yönlendirme | Görevin gereksinimine (`fast`/`reasoning`/`coding`/`vision`) göre yetenek-farkında model seçimi; **kullanıcı tier bazlı model sabitleyebilir** (override). Güncel Claude modelleri (Fable 5, Opus 5, Sonnet 5, Haiku 4.5) tanınır; güvenli varsayılana düşer. Bkz. [`MODELS.md`](./MODELS.md). |
 | Yetenekler (Skills) | Hedefe göre otomatik seçilen, sistem istemine uzmanlık talimatı enjekte eden ve model tercihini biçimlendiren yeniden kullanılabilir paketler. Yerleşik (Derin Araştırma, Doküman Yazarı, Çalışma Planlayıcı, Veri Analisti, GitHub Asistanı, E-posta Gönderici) + kullanıcı tanımlı özel yetenekler. |
 | Entegrasyonlar | Token tabanlı harici servisler araçlarını agent'a ekler: **GitHub** (arama/okuma/issue), **E-posta** (Resend ile gerçek gönderim) ve token'sız `web.fetch`. OAuth gerektiren Gmail/Drive için MCP sunucusu bağlanır. Bkz. [`INTEGRATIONS.md`](./INTEGRATIONS.md). |
 | Alt-agent'lar | Ana agent, karmaşık hedefleri `agent.spawn` ile rol tabanlı (research/coding/data/writing) **salt-okunur** alt-agent'lara devreder; bütçeli, iptal edilebilir, özyinelemeye kapalı. Bkz. [`SUBAGENTS.md`](./SUBAGENTS.md). |
@@ -21,7 +21,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Güvenlik | Prompt/tool çıktıları güvenilmeyen veri olarak ele alınır; secret redaction, URL/özel ağ kısıtlaması, dosya adı sanitizasyonu ve risk tabanlı izin kapısı kullanılır. |
 | MCP | HTTPS Streamable HTTP ile `tools/list` keşfi ve `tools/call` **gerçek çağrısı**; açık veya Bearer token korumalı sunucular için araçların merkezi registry’ye alınması; JSON + SSE yanıt desteği. |
 
-Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md) · [`BACKGROUND.md`](./BACKGROUND.md) · [`BROWSER.md`](./BROWSER.md)
+Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md) · [`BACKGROUND.md`](./BACKGROUND.md) · [`BROWSER.md`](./BROWSER.md) · [`MODELS.md`](./MODELS.md)
 
 > Web önizlemesi, tarayıcının güvenli depolama modelinden dolayı mobil secure storage ile aynı güvenlik garantisini vermez. Üretim anahtarlarını yalnızca Android/iOS uygulamasında saklayın.
 

@@ -6,9 +6,12 @@ const OPENAI_MODELS: ProviderModel[] = [
   { id: "gpt-4o-mini", label: "GPT-4o mini", capabilities: ["chat", "streaming", "tools"] },
   { id: "gpt-4.1-mini", label: "GPT-4.1 mini", capabilities: ["chat", "streaming", "tools"] },
 ];
+// Fallback list used only when GET /v1/models fails; the live list is preferred.
 const ANTHROPIC_MODELS: ProviderModel[] = [
-  { id: "claude-3-5-haiku-latest", label: "Claude Haiku", capabilities: ["chat", "streaming"] },
-  { id: "claude-sonnet-4-0", label: "Claude Sonnet", capabilities: ["chat", "streaming", "reasoning"] },
+  { id: "claude-haiku-4-5", label: "Claude Haiku 4.5", capabilities: ["chat", "streaming", "vision"] },
+  { id: "claude-sonnet-5", label: "Claude Sonnet 5", capabilities: ["chat", "streaming", "reasoning", "vision"] },
+  { id: "claude-opus-5", label: "Claude Opus 5", capabilities: ["chat", "streaming", "reasoning", "vision"] },
+  { id: "claude-fable-5", label: "Claude Fable 5", capabilities: ["chat", "streaming", "reasoning", "vision"] },
 ];
 const GEMINI_MODELS: ProviderModel[] = [
   { id: "gemini-1.5-flash", label: "Gemini 1.5 Flash", capabilities: ["chat", "streaming", "vision"] },

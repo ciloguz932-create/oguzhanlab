@@ -22,10 +22,12 @@ const PRICE_TABLE: PriceRow[] = [
   { match: "o1-mini", inputPerM: 1.1, outputPerM: 4.4 },
   { match: "o3-mini", inputPerM: 1.1, outputPerM: 4.4 },
   { match: "o1", inputPerM: 15, outputPerM: 60 },
-  // Anthropic
-  { match: "haiku", inputPerM: 0.8, outputPerM: 4 },
+  // Anthropic (current-gen list prices per 1M tokens)
+  { match: "fable", inputPerM: 10, outputPerM: 50 },
+  { match: "mythos", inputPerM: 10, outputPerM: 50 },
+  { match: "haiku", inputPerM: 1, outputPerM: 5 },
   { match: "sonnet", inputPerM: 3, outputPerM: 15 },
-  { match: "opus", inputPerM: 15, outputPerM: 75 },
+  { match: "opus", inputPerM: 5, outputPerM: 25 },
   // Google
   { match: "gemini-2.0-flash", inputPerM: 0.1, outputPerM: 0.4 },
   { match: "gemini-1.5-flash", inputPerM: 0.075, outputPerM: 0.3 },
