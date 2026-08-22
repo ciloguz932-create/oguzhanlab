@@ -1,6 +1,7 @@
 import { View, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
+import { palette } from "@/components/agent-ui";
 import { cn } from "@/lib/utils";
 
 export interface ScreenContainerProps extends ViewProps {
@@ -49,11 +50,8 @@ export function ScreenContainer({
 }: ScreenContainerProps) {
   return (
     <View
-      className={cn(
-        "flex-1",
-        "bg-background",
-        containerClassName
-      )}
+      className={cn("flex-1", containerClassName)}
+      style={{ backgroundColor: palette.background }}
       {...props}
     >
       <SafeAreaView
