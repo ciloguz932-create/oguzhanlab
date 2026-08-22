@@ -91,10 +91,16 @@ Tüm uygulama durumu (`AppState`) AsyncStorage'da saklanır; kimlik bilgileri ay
 - **Dayanıklı yürütme**: transcript checkpoint'i, yeniden başlatmada `queued`'e alma, ön plana gelince otomatik devam, `expo-keep-awake` ve tamamlama/izin için yerel bildirimler. OS sınırları dürüstçe belgelendi. Bkz. `BACKGROUND.md`.
 - **Web gezinme (Phase 7)**: `web.fetch` + `web.extractLinks` ile HTTP tabanlı gezinme; Web Gezgini yeteneği ve Araştırma Alt-Agent. Gerçek tarayıcı otomasyonu uzak tarayıcı-MCP ile eklenir. Bkz. `BROWSER.md`.
 - **Uzman model yönlendirme (Phase 8)**: tier bazlı model seçimi + kullanıcı sabitlemesi (override), güncel Claude modelleri (Fable 5 dahil) için sezgi ve fiyat tablosu. Bkz. `MODELS.md`.
+- **Agent API (Phase 9)**: `server/agent-api` — aynı RN'siz çekirdeği kullanan bağımsız HTTP API (REST + SSE); durumsuz kimlik bilgisi, önden izin (allowedTools), Docker ile dağıtım. Bkz. `AGENT_API.md`.
+
+## Sunucu tarafı yeniden kullanım
+
+`server/agent/service.ts`, mobil `agent-provider`'ın yaptığı orkestrasyonu sunucuda tekrarlar ama **aynı saf modülleri** çağırır: `orchestrator`, `providers`, `tools`, `skills`, `subagents`, `model-router`, `usage`. Böylece tek bir ajan mantığı hem mobilde hem bulutta çalışır; RN'e bağlı katmanlar (`storage`, `artifacts`, UI) sunucuya sızmaz.
 
 ## Planlı (henüz uygulanmadı — uydurulmadı)
 
-- MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme (Gmail/Drive native entegrasyonlarının önkoşulu).
-- Cihaz içi gerçek tarayıcı otomasyonu yerine uzak tarayıcı-MCP; sunucu tarafı arka plan ve kendi Agent API'si (Phase 9); rol bazlı alt-agent model yönlendirme.
+- MCP OAuth 2.1 / PKCE tarayıcı dönüş akışı ve token yenileme.
+- Uzak tarayıcı-MCP; rol bazlı alt-agent model yönlendirme.
+- Agent API için kalıcı depo, kimlik doğrulama/kota, MCP/entegrasyon köprüsü (AGENT_API.md → Sınırlar).
 
 Bu yetenekler için sözleşmeler (`ProviderAdapter`, `ToolRegistry`, `McpAuthType`) hazırdır; eklenmeleri çekirdeği yeniden yazmayı gerektirmez.

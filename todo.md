@@ -69,11 +69,17 @@
 - [x] Güncel Claude modelleri (Fable 5, Opus 5, Sonnet 5, Haiku 4.5) sezgi + fiyat tablosu
 - [x] Sağlayıcılar ekranında uzman model seçimi UI; MODELS.md; +2 test
 
+## Phase 9 — Bulut dağıtımı + Agent API
+- [x] Bağımsız HTTP Agent API (server/agent-api): REST + SSE, aynı RN'siz çekirdeği kullanır
+- [x] Durumsuz kimlik bilgisi (anahtar saklanmaz), önden izin (allowedTools), token/maliyet raporu
+- [x] Dockerfile + .dockerignore + build:agent-api/start:agent-api betikleri
+- [x] AGENT_API.md (uç noktalar, güvenlik, dağıtım, dürüst sınırlar); +5 entegrasyon testi
+
 ## Sonraki adımlar (planlı — uydurulmadı)
-- [ ] Phase 9: Bulut dağıtımı + kendi Agent API'si (gerçek sunucu tarafı arka plan)
+- [ ] Agent API kalıcı depo (Postgres/SQLite) + kimlik doğrulama/kota
+- [ ] Agent API üzerinden MCP/entegrasyon köprüsü
 - [ ] Uzak tarayıcı-MCP entegrasyonu (JS render / tıklama / ekran görüntüsü)
-- [ ] Rol bazlı alt-agent model yönlendirme
-- [ ] MCP OAuth 2.1/PKCE (Gmail/Drive native entegrasyonlarının önkoşulu)
+- [ ] Rol bazlı alt-agent model yönlendirme; MCP OAuth 2.1/PKCE
 - [ ] Phase 5: Sub-agent'lar
 - [ ] Phase 6: Arka plan yürütme
 - [ ] Phase 7: Tarayıcı ajanı

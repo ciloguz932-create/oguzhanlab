@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.expo
+artifacts
+*.log
+assets
+app
+components
+hooks
+constants

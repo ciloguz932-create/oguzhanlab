@@ -13,6 +13,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Alt-agent'lar | Ana agent, karmaşık hedefleri `agent.spawn` ile rol tabanlı (research/coding/data/writing) **salt-okunur** alt-agent'lara devreder; bütçeli, iptal edilebilir, özyinelemeye kapalı. Bkz. [`SUBAGENTS.md`](./SUBAGENTS.md). |
 | Dayanıklı yürütme | Çalışmalar döngü içinde checkpoint'lenir; uygulama kapanırsa `queued` olur ve ön plana gelince kaldığı yerden **otomatik devam eder**. Aktif çalışmada ekran açık tutulur; arka planda tamamlama/izin için yerel bildirim gönderilir. OS sınırları dürüstçe belgelidir. Bkz. [`BACKGROUND.md`](./BACKGROUND.md). |
 | Web gezinme | `web.fetch` + `web.extractLinks` ile HTTP tabanlı gezinme (getir → bağlantıları çıkar → takip et); Web Gezgini yeteneği. Gerçek tarayıcı otomasyonu (JS render/tıklama) uzak tarayıcı-MCP ile eklenir; cihaz içi taklit edilmez. Bkz. [`BROWSER.md`](./BROWSER.md). |
+| Agent API (bulut) | `server/agent-api` — aynı ajan çekirdeğini kullanan bağımsız HTTP API (REST + SSE), durumsuz kimlik bilgisi, Docker ile dağıtım. Mobil uygulama local-first kalır; API isteğe bağlı bulut yüzeyidir. Bkz. [`AGENT_API.md`](./AGENT_API.md). |
 | Kimlik bilgileri | Android/iOS’ta `expo-secure-store`; web önizlemesinde yalnızca oturumluk `sessionStorage` geri dönüşü. Anahtarlar olay günlüklerinden ve kalıcı uygulama durumundan ayrıdır. |
 | Agent Runtime | **Otonom agentic döngü**: model araçları (native + MCP) kendisi seçer, sonuçları güvenilmeyen veri olarak gözlemler ve her turda planını günceller (dinamik replanning). İzin askıya alma/devam etme, geçici hatalarda backoff’lu yeniden deneme, gerçek durdurma, adım/araç/hard-cap sınırları ve yarıda kalan çalışmaların kurtarılması. |
 | Maliyet/token | Çalışma başına token toplama ve **tahmini** maliyet (public liste fiyatları, açıkça "tahmini" etiketli). |
@@ -21,7 +22,7 @@ OguzhanLab Agent, mobil cihazlarda kullanılmak üzere tasarlanmış **local-fir
 | Güvenlik | Prompt/tool çıktıları güvenilmeyen veri olarak ele alınır; secret redaction, URL/özel ağ kısıtlaması, dosya adı sanitizasyonu ve risk tabanlı izin kapısı kullanılır. |
 | MCP | HTTPS Streamable HTTP ile `tools/list` keşfi ve `tools/call` **gerçek çağrısı**; açık veya Bearer token korumalı sunucular için araçların merkezi registry’ye alınması; JSON + SSE yanıt desteği. |
 
-Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md) · [`BACKGROUND.md`](./BACKGROUND.md) · [`BROWSER.md`](./BROWSER.md) · [`MODELS.md`](./MODELS.md)
+Ayrıntılı belgeler: [`ARCHITECTURE.md`](./ARCHITECTURE.md) · [`SECURITY.md`](./SECURITY.md) · [`MCP.md`](./MCP.md) · [`INTEGRATIONS.md`](./INTEGRATIONS.md) · [`SUBAGENTS.md`](./SUBAGENTS.md) · [`BACKGROUND.md`](./BACKGROUND.md) · [`BROWSER.md`](./BROWSER.md) · [`MODELS.md`](./MODELS.md) · [`AGENT_API.md`](./AGENT_API.md)
 
 > Web önizlemesi, tarayıcının güvenli depolama modelinden dolayı mobil secure storage ile aynı güvenlik garantisini vermez. Üretim anahtarlarını yalnızca Android/iOS uygulamasında saklayın.
 
