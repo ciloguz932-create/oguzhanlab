@@ -1,0 +1,108 @@
+name: Web (bilgisayar/tarayıcı sürümü)
+
+# Builds the app for the web and publishes it two ways:
+#  1) A live URL via GitHub Pages  → open on any phone/computer browser, no install.
+#  2) A downloadable "web-build" artifact (the static dist/ folder) → serve locally,
+#     or wrap into a desktop .exe later (Tauri/Electron).
+# No Expo account / EAS secrets needed — this is a pure static export.
+on:
+  workflow_dispatch:
+    inputs:
+      deploy_pages:
+        description: "GitHub Pages'e canlı yayınla (repo'da Pages > Source = GitHub Actions olmalı)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: web-deploy
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Web export
+    runs-on: ubuntu-latest
+    outputs:
+      base_url: ${{ steps.base.outputs.base_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.12.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # For Pages project sites the app is served under "/<repo>/". For a
+      # user/org root site ("<user>.github.io") or a downloaded local build the
+      # prefix must be empty. We derive it from the repo name.
+      - name: Compute base URL
+        id: base
+        run: |
+          REPO="${GITHUB_REPOSITORY#*/}"
+          OWNER_SITE="${GITHUB_REPOSITORY_OWNER}.github.io"
+          if [ "${{ inputs.deploy_pages }}" = "true" ] && [ "$REPO" != "$OWNER_SITE" ]; then
+            echo "base_url=/$REPO/" >> "$GITHUB_OUTPUT"
+          else
+            echo "base_url=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Export web
+        env:
+          EXPO_WEB_BASE_URL: ${{ steps.base.outputs.base_url }}
+        run: npx expo export --platform web
+
+      - name: SPA fallback + Pages hygiene
+        run: |
+          # GitHub Pages runs Jekyll, which drops folders starting with "_"
+          # (Expo emits _expo/). .nojekyll disables that.
+          touch dist/.nojekyll
+          # Client-side routing fallback for deep links / refreshes.
+          cp dist/index.html dist/404.html
+
+      - name: Upload downloadable web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: dist
+          retention-days: 30
+
+      - name: Upload Pages artifact
+        if: ${{ inputs.deploy_pages }}
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Publish to GitHub Pages
+    needs: build
+    if: ${{ inputs.deploy_pages }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## 🌐 Web sürümü yayınlandı"
+            echo ""
+            echo "**Canlı adres:** ${{ steps.deployment.outputs.page_url }}"
+            echo ""
+            echo "Telefonda veya bilgisayarda tarayıcıdan aç. Uygulama gibi kurmak için"
+            echo "tarayıcı menüsünden **\"Ana ekrana ekle\" / \"Install\"** de (PWA)."
+            echo ""
+            echo "> İndirilebilir statik build için bu çalışmanın **Artifacts → web-build**"
+            echo "> bölümüne bak (bilgisayarda yerel sunmak veya .exe'ye çevirmek için)."
+          } >> "$GITHUB_STEP_SUMMARY"
