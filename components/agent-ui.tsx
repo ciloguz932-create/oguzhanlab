@@ -21,16 +21,16 @@ export function PrimaryButton({ label, onPress, loading, disabled, tone = "prima
   const isPrimary = tone === "primary";
   const isDanger = tone === "danger";
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} disabled={disabled || loading} onPress={onPress} style={({ pressed }) => [styles.button, isPrimary && styles.buttonPrimary, !isPrimary && styles.buttonSecondary, isDanger && styles.buttonDanger, (disabled || loading) && styles.buttonDisabled, pressed && styles.pressed]}>
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled: Boolean(disabled || loading), busy: Boolean(loading) }} hitSlop={6} disabled={disabled || loading} onPress={onPress} style={({ pressed }) => [styles.button, isPrimary && styles.buttonPrimary, !isPrimary && styles.buttonSecondary, isDanger && styles.buttonDanger, (disabled || loading) && styles.buttonDisabled, pressed && styles.pressed]}>
       {loading ? <ActivityIndicator color={isPrimary || isDanger ? "#FFFFFF" : palette.navy} /> : icon ? <MaterialIcons name={icon} size={18} color={isPrimary || isDanger ? "#FFFFFF" : palette.navy} /> : null}
-      <Text style={[styles.buttonText, isPrimary && styles.buttonTextPrimary, isDanger && styles.buttonTextPrimary]}>{label}</Text>
+      <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.buttonText, isPrimary && styles.buttonTextPrimary, isDanger && styles.buttonTextPrimary]}>{label}</Text>
     </Pressable>
   );
 }
 
 export function StatusPill({ label, tone = "neutral" }: { label: string; tone?: "success" | "warning" | "error" | "info" | "neutral" }) {
   const style = tone === "success" ? styles.success : tone === "warning" ? styles.warning : tone === "error" ? styles.error : tone === "info" ? styles.info : styles.neutral;
-  return <View style={[styles.pill, style]}><Text style={[styles.pillText, tone === "success" ? { color: palette.success } : tone === "warning" ? { color: palette.warning } : tone === "error" ? { color: palette.error } : tone === "info" ? { color: palette.blue } : { color: palette.muted }]}>{label}</Text></View>;
+  return <View style={[styles.pill, style]}><Text numberOfLines={1} ellipsizeMode="tail" style={[styles.pillText, tone === "success" ? { color: palette.success } : tone === "warning" ? { color: palette.warning } : tone === "error" ? { color: palette.error } : tone === "info" ? { color: palette.blue } : { color: palette.muted }]}>{label}</Text></View>;
 }
 
 export function EmptyState({ icon, title, description, action }: { icon: keyof typeof MaterialIcons.glyphMap; title: string; description: string; action?: React.ReactNode }) {
@@ -38,19 +38,19 @@ export function EmptyState({ icon, title, description, action }: { icon: keyof t
 }
 
 export function SectionHeading({ title, action }: { title: string; action?: React.ReactNode }) {
-  return <View style={styles.heading}><Text style={styles.headingText}>{title}</Text>{action}</View>;
+  return <View style={styles.heading}><Text numberOfLines={1} style={styles.headingText}>{title}</Text>{action}</View>;
 }
 
 const styles = StyleSheet.create({
-  button: { minHeight: 44, paddingHorizontal: 16, borderRadius: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
+  button: { minHeight: 46, paddingHorizontal: 14, borderRadius: 12, alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 8 },
   buttonPrimary: { backgroundColor: palette.blue },
   buttonSecondary: { backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.border },
   buttonDanger: { backgroundColor: palette.error },
   buttonDisabled: { opacity: 0.5 },
-  buttonText: { fontSize: 14, fontWeight: "700", color: palette.navy },
+  buttonText: { fontSize: 14, lineHeight: 18, fontWeight: "700", color: palette.navy, flexShrink: 1 },
   buttonTextPrimary: { color: "#FFFFFF" },
   pressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
-  pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, alignSelf: "flex-start" },
+  pill: { maxWidth: "100%", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 99, alignSelf: "flex-start" },
   pillText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.2 },
   success: { backgroundColor: palette.successSoft },
   warning: { backgroundColor: palette.warningSoft },

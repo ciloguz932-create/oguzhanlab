@@ -29,7 +29,9 @@ const schemeFromBundleId = `manus${timestamp}`;
 const env = {
   // App branding - update these values directly (do not use env vars)
   appName: "OguzhanLab Agent",
-  appSlug: "oguzhanlab-mobile",
+  // Must equal the slug of the Expo project referenced by EAS_PROJECT_ID. Overridable
+  // via EXPO_SLUG (CI variable) so the repo isn't tied to one Expo project.
+  appSlug: process.env.EXPO_SLUG || "oguzhanlab-mobile",
   // S3 URL of the app logo - set this to the URL returned by generate_image when creating custom logo
   // Leave empty to use the default icon from assets/images/icon.png
   logoUrl: "/manus-storage/oguzhanlab-agent-icon_189e2235.png",
@@ -38,14 +40,25 @@ const env = {
   androidPackage: bundleId,
 };
 
+// EAS linkage is supplied via environment (CI variables), never hardcoded, so no
+// account-specific value lives in the repo. Local dev/tests work with these unset.
+const easProjectId = process.env.EAS_PROJECT_ID || undefined;
+const expoOwner = process.env.EXPO_OWNER || undefined;
+
+// Web base path. GitHub Pages project sites serve under "/<repo>/", so the web
+// export must be built with that prefix or every asset 404s. Driven by env
+// (EXPO_WEB_BASE_URL, set in the web-deploy workflow); empty for local/root hosting.
+const webBaseUrl = process.env.EXPO_WEB_BASE_URL || undefined;
+
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
   version: "1.0.0",
+  ...(expoOwner ? { owner: expoOwner } : {}),
   orientation: "portrait",
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
-  userInterfaceStyle: "automatic",
+  userInterfaceStyle: "dark",
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
@@ -128,9 +141,19 @@ const config: ExpoConfig = {
       },
     ],
   ],
+  // OTA (EAS Update): JS/UI changes reach installed apps on reopen without a rebuild.
+  // The update URL is derived from the EAS project id (CI env); undefined locally.
+  ...(easProjectId ? { updates: { url: `https://u.expo.dev/${easProjectId}` } } : {}),
+  runtimeVersion: { policy: "appVersion" },
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+    ...(webBaseUrl ? { baseUrl: webBaseUrl } : {}),
+  },
+  extra: {
+    // Populated by EAS/CI (see .github/workflows/eas-android-build.yml). Undefined
+    // locally, which is fine — it is only required at build time on EAS.
+    eas: { projectId: easProjectId },
   },
 };
 
