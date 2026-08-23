@@ -45,6 +45,11 @@ const env = {
 const easProjectId = process.env.EAS_PROJECT_ID || undefined;
 const expoOwner = process.env.EXPO_OWNER || undefined;
 
+// Web base path. GitHub Pages project sites serve under "/<repo>/", so the web
+// export must be built with that prefix or every asset 404s. Driven by env
+// (EXPO_WEB_BASE_URL, set in the web-deploy workflow); empty for local/root hosting.
+const webBaseUrl = process.env.EXPO_WEB_BASE_URL || undefined;
+
 const config: ExpoConfig = {
   name: env.appName,
   slug: env.appSlug,
@@ -143,6 +148,7 @@ const config: ExpoConfig = {
   experiments: {
     typedRoutes: true,
     reactCompiler: true,
+    ...(webBaseUrl ? { baseUrl: webBaseUrl } : {}),
   },
   extra: {
     // Populated by EAS/CI (see .github/workflows/eas-android-build.yml). Undefined
