@@ -5,16 +5,17 @@ import { AppState as RNAppState } from "react-native";
 
 import { ArtifactStore } from "./artifacts";
 import { AgentError, withRetry } from "./errors";
+import { failureFromError } from "./failures";
 import { getIntegrationDef, INTEGRATION_DEFS, integrationForToolId, validateIntegrationToken } from "./integrations";
 import { McpClient } from "./mcp";
-import { selectModel } from "./model-router";
+import { pickDefaultModel, selectModel } from "./model-router";
 import { type AgentTool, DEFAULT_LIMITS, type PendingToolCall, type PermissionGate, runAgentLoop } from "./orchestrator";
 import { Planner } from "./planner";
 import { ProviderRegistry } from "./providers";
 import { assertSafeRemoteUrl, makeId, safeErrorMessage } from "./security";
 import { makeCustomSkill, selectSkills, skillModelRequirement, validateSkillInput } from "./skills";
 import { isSubAgentRole, runSubAgent, SUBAGENT_ROLES } from "./subagents";
-import { queuedRunIds } from "./recovery";
+import { queuedRunIds, recoverInterruptedRuns } from "./recovery";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
 import { executeWebExtractLinks, executeWebFetch, executeWebSearch, makeArtifactName, safeCalculate, sanitizeTextTransform, ToolRegistry } from "./tools";
 import { addUsage, emptyTotals, estimateCostUsd } from "./usage";
@@ -99,7 +100,11 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, []);
 
   useEffect(() => {
-    repository.load().then((loaded) => {
+    repository.load().then((raw) => {
+      // Reclassify any run left mid-flight when the app died: resumable ones are queued
+      // for auto-resume, the rest are marked failed. Without this a crashed/hung run stays
+      // stuck at "running" forever across restarts.
+      const loaded = recoverInterruptedRuns(raw);
       // Register the static integration tools so ids resolve for gating/dispatch;
       // exposure to the agent is decided by buildCatalog (enabled + connected only).
       INTEGRATION_DEFS.forEach((def) => def.tools.forEach((tool) => tools.register(tool)));
@@ -190,7 +195,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
       credentialId,
       status: "connected",
       models,
-      defaultModel: defaultModel && models.some((model) => model.id === defaultModel) ? defaultModel : models[0]?.id ?? "",
+      defaultModel: defaultModel && models.some((model) => model.id === defaultModel) ? defaultModel : pickDefaultModel(selected.id, models),
       createdAt: now(),
       lastValidatedAt: now(),
     };
@@ -291,19 +296,33 @@ export function AgentProvider({ children }: PropsWithChildren) {
     const workspaceId = run.workspaceId;
     // Resolve the skills selected for this run; they inject expert instructions and can bias routing.
     const activeSkills = (run.activeSkillIds ?? []).map((id) => stateRef.current.skills.find((skill) => skill.id === id)).filter((skill): skill is Skill => Boolean(skill));
-    const requirement: ModelRequirement = skillModelRequirement(activeSkills) ?? "reasoning";
-    const model = selectModel(connection.models, requirement, connection.defaultModel, connection.modelOverrides?.[requirement]);
+    // Only force a capability tier when an active skill needs it; a plain conversational
+    // goal (no skill) uses the connection's chosen default model, which is fast/available
+    // rather than an expensive reasoning model the key may not be able to run.
+    const requirement: ModelRequirement | undefined = skillModelRequirement(activeSkills);
+    const model = selectModel(connection.models, requirement, connection.defaultModel, requirement ? connection.modelOverrides?.[requirement] : undefined);
     if (model !== run.selectedModel) updateRun(runId, { selectedModel: model });
 
     // One reasoning turn: retried fully because a non-streaming model call has no side effects.
+    // We emit a visible event before and after each call (with the model id) so a stalled
+    // or failing provider is diagnosable from the activity feed instead of a silent "running".
     const callModel = async (messages: ProviderMessage[], signal: AbortSignal): Promise<string> => {
-      const response = await withRetry(() => provider.generate({ key, model, messages, signal }), {
-        retries: MAX_TRANSIENT_RETRIES,
-        signal,
-        onRetry: (error, attempt, delay) => addEvent({ runId, type: "TaskRetried", summary: `Model isteği yeniden denenecek (${attempt}, ${Math.round(delay / 100) / 10}s): ${error.message}`, level: "warning" }),
-      });
-      accrueUsage(runId, connection.provider, model, response.usage);
-      return response.content;
+      addEvent({ runId, type: "ModelRequest", summary: `Model çağrılıyor: ${model}`, level: "info" });
+      try {
+        const response = await withRetry(() => provider.generate({ key, model, messages, signal }), {
+          retries: MAX_TRANSIENT_RETRIES,
+          signal,
+          onRetry: (error, attempt, delay) => addEvent({ runId, type: "TaskRetried", summary: `Model isteği yeniden denenecek (${attempt}, ${Math.round(delay / 100) / 10}s): ${error.message}`, level: "warning" }),
+        });
+        accrueUsage(runId, connection.provider, model, response.usage);
+        addEvent({ runId, type: "ModelResponse", summary: response.content.trim() ? `Model yanıtladı (${response.content.length} karakter).` : "Model boş yanıt döndürdü.", level: response.content.trim() ? "success" : "warning" });
+        return response.content;
+      } catch (error) {
+        // Surface the classified reason so the failure is visible and actionable.
+        const failure = failureFromError(error);
+        addEvent({ runId, type: "TaskFailed", summary: `Model hatası: ${failure.message}`, level: "error" });
+        throw error;
+      }
     };
 
     // Executes a base (non-spawn) native/MCP/integration tool by id. Never throws for a normal tool error.

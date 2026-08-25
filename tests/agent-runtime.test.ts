@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AgentError, backoffDelayMs, classifyError, httpError, sleep, withRetry } from "../lib/agent/errors";
-import { classifyModel, selectModel } from "../lib/agent/model-router";
+import { classifyModel, pickDefaultModel, selectModel } from "../lib/agent/model-router";
 import { McpClient } from "../lib/agent/mcp";
 import { ProviderRegistry } from "../lib/agent/providers";
 import { queuedRunIds, recoverInterruptedRuns } from "../lib/agent/recovery";
@@ -44,6 +44,17 @@ describe("model router", () => {
     expect(selectModel(models, "fast", "gpt-4o-mini", "gpt-4.1")).toBe("gpt-4.1");
     // A pin for a model the connection lacks is ignored (falls back to heuristics).
     expect(selectModel(models, "fast", "gpt-4.1", "does-not-exist")).toBe("gpt-4o-mini");
+  });
+
+  it("picks a free+fast default for OpenRouter, fast otherwise", () => {
+    const or = [model("anthropic/claude-opus"), model("meta-llama/llama-3.1-70b-instruct:free"), model("meta-llama/llama-3.1-8b-instruct:free")];
+    // Prefers a :free model, and the fast tier within free.
+    expect(pickDefaultModel("openrouter", or)).toBe("meta-llama/llama-3.1-8b-instruct:free");
+    // No free models → first available.
+    expect(pickDefaultModel("openrouter", [model("anthropic/claude-opus"), model("openai/gpt-4o")])).toBe("anthropic/claude-opus");
+    // Other providers prefer a fast/cheap model.
+    expect(pickDefaultModel("openai", [model("gpt-4.1"), model("gpt-4o-mini")])).toBe("gpt-4o-mini");
+    expect(pickDefaultModel("openai", [])).toBe("");
   });
 });
 

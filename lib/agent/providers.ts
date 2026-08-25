@@ -5,7 +5,7 @@ import type { ProviderAdapter, ProviderId, ProviderMessage, ProviderModel, Provi
 // Hard ceiling on any single provider HTTP request so a stalled connection can never
 // leave a run stuck "running" forever. The timer is cleared as soon as the response
 // headers arrive, so it bounds time-to-first-byte without cutting off a long stream body.
-const REQUEST_TIMEOUT_MS = 90_000;
+const REQUEST_TIMEOUT_MS = 60_000;
 
 async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
   const external = init.signal ?? undefined;
@@ -20,7 +20,9 @@ async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Re
   try {
     return await fetch(url, { ...init, signal: controller.signal });
   } catch (err) {
-    if (timedOut) throw new AgentError("Model zaman aşımına uğradı (yanıt gelmedi). Tekrar deneyin ya da Sağlayıcılar'dan daha hızlı bir model seçin.", "timeout");
+    // Non-retryable: a stalled connection won't recover by retrying, and retrying would
+    // just multiply the wait. Fail fast with a clear, actionable message.
+    if (timedOut) throw new AgentError("Model 60 sn içinde yanıt vermedi. Sağlayıcılar ekranından daha hızlı/erişilebilir bir model seçin (ör. sonu ':free' olan ya da 'mini/flash/haiku' içeren bir model).", "timeout", { retryable: false });
     if (external?.aborted) throw new DOMException("Aborted", "AbortError");
     throw err;
   } finally {
