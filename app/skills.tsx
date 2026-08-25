@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
-import { EmptyState, palette, PrimaryButton, StatusPill } from "@/components/agent-ui";
+import { EmptyState, palette, PrimaryButton, StatusPill, useContentWidthStyle } from "@/components/agent-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useAgent } from "@/lib/agent/agent-provider";
 import type { Skill } from "@/lib/agent/types";
@@ -28,6 +28,7 @@ function SkillCard({ skill }: { skill: Skill }) {
 
 export default function SkillsScreen() {
   const { state, addSkill } = useAgent();
+  const contentWidth = useContentWidthStyle();
   const [visible, setVisible] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -44,7 +45,7 @@ export default function SkillsScreen() {
       <FlatList
         data={state.skills}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, contentWidth]}
         ListHeaderComponent={<View style={styles.header}><Text style={styles.title}>Yetenekler</Text><Text style={styles.subtitle}>Yetenekler, göreve uygun uzmanlık talimatlarını ve model tercihini agent’a otomatik ekler. İlgili olanlar hedefe göre kendiliğinden etkinleşir.</Text><PrimaryButton label="Özel yetenek ekle" icon="add" onPress={() => setVisible(true)} /></View>}
         ListEmptyComponent={<EmptyState icon="auto-awesome" title="Yetenek yok" description="Yerleşik yetenekler yüklenemedi." />}
         renderItem={({ item }) => <SkillCard skill={item} />}

@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
-import { EmptyState, palette, PrimaryButton, StatusPill } from "@/components/agent-ui";
+import { EmptyState, palette, PrimaryButton, StatusPill, useContentWidthStyle } from "@/components/agent-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useAgent } from "@/lib/agent/agent-provider";
 import { INTEGRATION_DEFS, type IntegrationDef } from "@/lib/agent/integrations";
@@ -49,12 +49,13 @@ function IntegrationCard({ def, config }: { def: IntegrationDef; config: Integra
 
 export default function IntegrationsScreen() {
   const { state } = useAgent();
+  const contentWidth = useContentWidthStyle();
   return (
     <ScreenContainer className="flex-1">
       <FlatList
         data={INTEGRATION_DEFS}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, contentWidth]}
         ListHeaderComponent={<View style={styles.header}><Text style={styles.title}>Entegrasyonlar</Text><Text style={styles.subtitle}>Token tabanlı harici servisler araçlarını agent’a ekler. Tokenlar cihazın güvenli alanında saklanır. Gmail/Drive gibi OAuth gerektiren servisler için bir MCP sunucusu bağlayın.</Text></View>}
         ListEmptyComponent={<EmptyState icon="extension-off" title="Entegrasyon yok" description="Yerleşik entegrasyonlar yüklenemedi." />}
         renderItem={({ item }) => <IntegrationCard def={item} config={state.integrations.find((config) => config.id === item.id) ?? { id: item.id, enabled: false, connected: false, createdAt: "" }} />}

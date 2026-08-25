@@ -36,16 +36,31 @@ Agent ekranı üç katmanlıdır: üstte kısa hedef ve durum, ortada canlı pla
 
 Uygulamanın marka dili, araç kullanımı ve güven hissi için koyu lacivert taban ile parlak elektrik turkuazı kullanır. Açık modda arka plan sıcak beyaz, koyu modda gece mavisidir. Başarı, izin ve hata durumları semantik renklerle ayrışır.
 
-| Amaç | Açık mod | Koyu mod |
+Aşağıdaki değerler uygulamada uygulanan tek kaynak olan `components/agent-ui.tsx`
+içindeki `palette` (koyu) ve `theme.config.js` (açık/koyu token) ile birebir aynıdır.
+Uygulama şu an koyu‑öncelikli çalışır; açık mod token'ları ileride tema geçişi için hazırdır.
+
+| Amaç | Açık mod | Koyu mod (etkin) |
 |---|---:|---:|
-| Birincil vurgu | `#0C6EAF` | `#42B6F5` |
-| Arka plan | `#F7F9FC` | `#0B1220` |
-| Yüzey | `#FFFFFF` | `#121D2E` |
-| Ana metin | `#10243E` | `#EAF2FF` |
-| İkincil metin | `#63748A` | `#9BACBF` |
-| Başarı | `#11845B` | `#45D6A4` |
-| Uyarı / izin | `#B56A00` | `#FFC561` |
-| Hata | `#C33C4A` | `#FF8893` |
+| Birincil vurgu | `#0C6EAF` | `#4C9EF2` |
+| Arka plan | `#F7F9FC` | `#0A0F1A` |
+| Yüzey | `#FFFFFF` | `#111A28` |
+| Yüzey (yükseltilmiş) | `#F1F5FA` | `#182436` |
+| Kenarlık | `#DDE5EF` | `#223247` |
+| Ana metin | `#10243E` | `#EEF3FB` |
+| İkincil metin | `#63748A` | `#8DA0BC` |
+| Başarı | `#11845B` | `#3FD79E` |
+| Uyarı / izin | `#B56A00` | `#FFC663` |
+| Hata | `#C33C4A` | `#FF7E8B` |
+
+## Responsive Düzen
+
+Uygulama tek kod tabanıyla dar Android telefon, geniş telefon, tablet ve web/masaüstünde
+çalışır. `useResponsive()` (kaynak: `components/agent-ui.tsx`) tek doğ­ruluk kaynağıdır:
+telefon `< 700`, tablet `700–1000`, geniş `≥ 1000` piksel. Geniş ekranlarda içerik
+`useContentWidthStyle()` ile ortalanır ve okunabilir bir azami genişlikte (≈940px) tutulur;
+böylece metin ve listeler masaüstünde tüm genişliğe yayılıp okunaksız hâle gelmez. Dar
+ekranlarda tek sütun ve başparmak erişimli birincil eylemler korunur.
 
 ## Erişilebilirlik ve Durum İletişimi
 
