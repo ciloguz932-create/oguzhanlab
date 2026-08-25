@@ -142,6 +142,13 @@ export interface Skill {
   modelRequirement?: ModelRequirement;
   builtin: boolean;
   enabled: boolean;
+  // Versioned-manifest metadata (optional for backward compatibility with skills
+  // persisted before this was introduced). A skill is instructions-only: it never
+  // carries or executes code — see makeCustomSkill / validateSkillInput.
+  version?: string; // semver, defaults to "1.0.0"
+  source?: "builtin" | "user"; // provenance; user skills are untrusted content
+  installedAt?: string;
+  updatedAt?: string;
 }
 
 export interface RunUsage {

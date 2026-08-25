@@ -29,12 +29,23 @@ export function assertSafeRemoteUrl(value: string): URL {
   if (url.username || url.password) {
     throw new Error("Bağlantı adresinde kullanıcı adı veya parola kullanılamaz.");
   }
-  const hostname = url.hostname.toLowerCase();
-  const forbidden = ["localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.169.254"];
-  if (forbidden.includes(hostname) || hostname.endsWith(".local")) {
+  let hostname = url.hostname.toLowerCase();
+  // Unwrap [IPv6] brackets. IPv4-mapped IPv6 (::ffff:…, in either dotted or hex form)
+  // is blocked outright below so a loopback/private address can't slip through disguised.
+  hostname = hostname.replace(/^\[|\]$/g, "");
+  if (hostname.startsWith("::ffff:")) {
+    throw new Error("IPv4-eşlemeli IPv6 adreslerine izin verilmez.");
+  }
+  const forbidden = ["localhost", "127.0.0.1", "0.0.0.0", "::1", "::", "169.254.169.254", "metadata.google.internal"];
+  if (forbidden.includes(hostname) || hostname.endsWith(".local") || hostname.endsWith(".internal")) {
     throw new Error("Yerel veya özel ağ adreslerine bu sürümde izin verilmez.");
   }
-  if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(hostname)) {
+  // Private IPv4 ranges (RFC 1918), loopback /8, link-local, and CGNAT (RFC 6598 100.64/10).
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[0-1])\.|127\.|169\.254\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.)/.test(hostname)) {
+    throw new Error("Özel ağ adreslerine bu sürümde izin verilmez.");
+  }
+  // Unique-local (fc00::/7) and link-local (fe80::/10) IPv6.
+  if (/^(f[cd][0-9a-f]{2}:|fe[89ab][0-9a-f]:)/i.test(hostname)) {
     throw new Error("Özel ağ adreslerine bu sürümde izin verilmez.");
   }
   return url;

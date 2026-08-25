@@ -1,6 +1,40 @@
 import { makeId } from "./security";
 import type { ModelRequirement, Skill } from "./types";
 
+// Bounds for a user-defined (untrusted) skill manifest. Enforced by validateSkillInput
+// (reject) and makeCustomSkill (clamp) so a skill can't carry unbounded content.
+export const SKILL_LIMITS = { name: 80, description: 300, instructions: 8000, keywords: 24, keywordLength: 40, toolRequirements: 24 } as const;
+
+export interface SkillInput {
+  name: string;
+  description?: string;
+  instructions: string;
+  keywords?: string[];
+  toolRequirements?: string[];
+  modelRequirement?: ModelRequirement;
+}
+
+export type SkillValidation = { ok: true } | { ok: false; reason: string };
+
+/**
+ * Validates a user-supplied skill manifest before it is installed. Fails closed with a
+ * clear reason on missing required fields or oversized content. A skill is instruction
+ * text only — no code is accepted or executed — so validation is about bounds + presence,
+ * not sandboxing executables.
+ */
+export function validateSkillInput(input: SkillInput): SkillValidation {
+  const name = (input.name ?? "").trim();
+  const instructions = (input.instructions ?? "").trim();
+  if (!name) return { ok: false, reason: "Ad zorunludur." };
+  if (name.length > SKILL_LIMITS.name) return { ok: false, reason: `Ad en fazla ${SKILL_LIMITS.name} karakter olabilir.` };
+  if (!instructions) return { ok: false, reason: "Talimatlar zorunludur." };
+  if (instructions.length > SKILL_LIMITS.instructions) return { ok: false, reason: `Talimatlar en fazla ${SKILL_LIMITS.instructions} karakter olabilir.` };
+  if ((input.description ?? "").length > SKILL_LIMITS.description) return { ok: false, reason: `Açıklama en fazla ${SKILL_LIMITS.description} karakter olabilir.` };
+  if ((input.keywords ?? []).length > SKILL_LIMITS.keywords) return { ok: false, reason: `En fazla ${SKILL_LIMITS.keywords} tetikleyici kelime kullanılabilir.` };
+  if ((input.toolRequirements ?? []).length > SKILL_LIMITS.toolRequirements) return { ok: false, reason: `En fazla ${SKILL_LIMITS.toolRequirements} araç gereksinimi tanımlanabilir.` };
+  return { ok: true };
+}
+
 export const BUILTIN_SKILLS: Skill[] = [
   {
     id: "skill.research",
@@ -138,18 +172,31 @@ export function selectSkills(skills: Skill[], instruction: string, limit = 3): S
     .map((entry) => entry.skill);
 }
 
-/** Builds a custom (user-defined) skill from partial input with safe defaults. */
-export function makeCustomSkill(input: { name: string; description?: string; instructions: string; keywords?: string[]; toolRequirements?: string[]; modelRequirement?: ModelRequirement }): Skill {
+/**
+ * Builds a custom (user-defined) skill from partial input with safe defaults, clamping
+ * every field to SKILL_LIMITS so a manifest can't carry unbounded content. Callers should
+ * run validateSkillInput first to surface a clear rejection reason; this function additionally
+ * hard-clamps as defense in depth. The skill is instructions-only and marked source "user".
+ */
+export function makeCustomSkill(input: SkillInput): Skill {
+  const now = new Date().toISOString();
   return {
     id: makeId("skill"),
-    name: input.name.trim() || "Özel Yetenek",
-    description: input.description?.trim() || "Kullanıcı tanımlı yetenek.",
-    instructions: input.instructions.trim(),
-    keywords: (input.keywords ?? []).map((keyword) => keyword.trim().toLocaleLowerCase("tr-TR")).filter(Boolean),
-    toolRequirements: input.toolRequirements ?? [],
+    name: (input.name.trim() || "Özel Yetenek").slice(0, SKILL_LIMITS.name),
+    description: (input.description?.trim() || "Kullanıcı tanımlı yetenek.").slice(0, SKILL_LIMITS.description),
+    instructions: input.instructions.trim().slice(0, SKILL_LIMITS.instructions),
+    keywords: (input.keywords ?? [])
+      .map((keyword) => keyword.trim().toLocaleLowerCase("tr-TR").slice(0, SKILL_LIMITS.keywordLength))
+      .filter(Boolean)
+      .slice(0, SKILL_LIMITS.keywords),
+    toolRequirements: (input.toolRequirements ?? []).slice(0, SKILL_LIMITS.toolRequirements),
     modelRequirement: input.modelRequirement,
     builtin: false,
     enabled: true,
+    version: "1.0.0",
+    source: "user",
+    installedAt: now,
+    updatedAt: now,
   };
 }
 

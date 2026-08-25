@@ -35,9 +35,25 @@ Keşfedilen araçlar uygulama durumunda saklanır ve **yeniden başlatmada** in-
 
 ## Güvenlik
 
-- Endpoint eklenirken `assertSafeRemoteUrl` ile doğrulanır (yalnızca HTTPS, özel ağ/loopback yasak).
+- Endpoint eklenirken `assertSafeRemoteUrl` ile doğrulanır (yalnızca HTTPS, özel ağ/loopback yasak; ayrıntı `SECURITY.md`).
 - Araç adları, açıklamaları ve sonuçları **güvenilmeyen veri**dir; asla sistem talimatı olarak yorumlanmaz (tool poisoning / prompt injection koruması — `SECURITY.md`).
 - Tool çalıştırma kullanıcı tetiklidir; MCP sunucusu kullanıcı workspace'ine otomatik/sınırsız erişim kazanmaz.
+
+### Keşif doğrulaması (fail-closed)
+
+Keşfedilen `tools/list` yanıtı güvenilmeyen sunucu içeriğidir ve `discoverTools` içinde sıkı doğrulanır:
+
+- **Araç adı** yalnızca güvenli, sınırlı bir tanımlayıcıysa kabul edilir (`^[A-Za-z0-9._-]{1,64}$` — `isValidMcpToolName`). Boş/uzun/güvensiz adlar **atılır**, adreslenebilir bir id'ye dönüşemez.
+- Aynı sunucu içinde **yinelenen adlar tekilleştirilir** (bir ad iki id'ye eşlenemez).
+- Sunucu başına en fazla **100 araç** keşfedilir; açıklamalar 500 karaktere kesilir.
+- Yanıt gövdesi **1 MB** ile sınırlıdır (`content-length` başlığı ya da okunan metin); aşan yanıt reddedilir. Geçersiz JSON reddedilir.
+- Namespaced id (`mcp.<serverId>.<toolName>`) çapraz-sunucu ve native çakışmayı yapısal olarak önler.
+
+### Sunucu/araç yaşam döngüsü ve enable/disable
+
+- Her sunucu için **etkin/devre dışı** anahtarı vardır (MCP ekranı). Devre dışı bir sunucunun araçları katalogdan (`buildCatalog`) düşürülür ve çağrıda reddedilir — yapılandırma/token silinmeden.
+- Yeniden keşif, sunucunun araçlarını **değiştirir** (biriktirmez): kaldırılan/yeniden adlandırılan araçların eski id'leri registry'den düşer (`ToolRegistry.replaceMcpServerTools`).
+- Sunucu kaldırıldığında araçları registry'den temizlenir ve saklı token silinir; kaldırılan sunucunun araçları artık sunulamaz/çağrılamaz.
 
 ## Otonom seçim (Phase 2 — uygulandı)
 
