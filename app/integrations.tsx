@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState, palette, PrimaryButton, StatusPill, useContentWidthStyle } from "@/components/agent-ui";
 import { ScreenContainer } from "@/components/screen-container";
@@ -10,6 +11,7 @@ import type { IntegrationConfig } from "@/lib/agent/types";
 
 function IntegrationCard({ def, config }: { def: IntegrationDef; config: IntegrationConfig }) {
   const { connectIntegration, disconnectIntegration, setIntegrationEnabled } = useAgent();
+  const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [token, setToken] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,7 +37,7 @@ function IntegrationCard({ def, config }: { def: IntegrationDef; config: Integra
         ? <Pressable onPress={() => void disconnectIntegration(def.id)} style={({ pressed }) => [styles.disconnect, pressed && styles.pressed]}><MaterialIcons name="link-off" size={16} color={palette.error} /><Text style={styles.disconnectText}>Bağlantıyı kaldır</Text></Pressable>
         : <PrimaryButton label="Bağlan" tone="secondary" icon="link" onPress={() => setVisible(true)} />}
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
-        <View style={styles.modalWrap}><View style={styles.modal}>
+        <View style={styles.modalWrap}><View style={[styles.modal, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
           <Text style={styles.modalTitle}>{def.name} bağla</Text>
           <Text style={styles.modalText}>{def.credentialHint}</Text>
           <TextInput value={token} onChangeText={setToken} autoCapitalize="none" autoCorrect={false} secureTextEntry placeholder={def.credentialLabel} placeholderTextColor="#91A0B4" style={styles.input} />
