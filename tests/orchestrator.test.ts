@@ -66,6 +66,19 @@ describe("agentic loop", () => {
     expect(secondTurn).toContain("sonuç:web.search");
   });
 
+  it("accepts a plain-text reply as the final answer after one nudge (weak models)", async () => {
+    // A model that never emits the JSON envelope, just conversational prose.
+    const { deps, modelInputs } = makeDeps(["Selam! İyiyim, sen nasılsın?", "Yine düz metin yanıt."]);
+    const outcome = await runAgentLoop(deps, { goal: "Selam naber", tools: TOOLS, signal });
+    expect(outcome.status).toBe("completed");
+    if (outcome.status !== "completed") return;
+    // Answered from the prose instead of looping to the step cap.
+    expect(outcome.content).toContain("düz metin");
+    expect(outcome.steps).toBe(2); // one nudge, then accept — not 12
+    // The nudge asked for the JSON envelope once.
+    expect(modelInputs[1].map((m) => m.content).join("\n")).toContain("action");
+  });
+
   it("suspends on ask and resumes by executing the approved call", async () => {
     const { deps, toolCalls } = makeDeps([
       '{"action":"tool","tool":"filesystem.writeMarkdown","args":{"content":"x"}}',

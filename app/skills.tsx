@@ -1,6 +1,7 @@
 import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { useState } from "react";
 import { FlatList, Modal, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState, palette, PrimaryButton, StatusPill, useContentWidthStyle } from "@/components/agent-ui";
 import { ScreenContainer } from "@/components/screen-container";
@@ -29,6 +30,7 @@ function SkillCard({ skill }: { skill: Skill }) {
 export default function SkillsScreen() {
   const { state, addSkill } = useAgent();
   const contentWidth = useContentWidthStyle();
+  const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -54,7 +56,7 @@ export default function SkillsScreen() {
         renderItem={({ item }) => <SkillCard skill={item} />}
       />
       <Modal visible={visible} transparent animationType="slide" onRequestClose={() => setVisible(false)}>
-        <View style={styles.modalWrap}><View style={styles.modal}>
+        <View style={styles.modalWrap}><View style={[styles.modal, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
           <Text style={styles.modalTitle}>Özel yetenek</Text>
           <Text style={styles.modalText}>Talimatlar, uygun görevlerde agent’ın sistem istemine eklenir. Tetikleyici kelimeler hangi hedeflerde etkinleşeceğini belirler.</Text>
           <TextInput value={name} onChangeText={setName} placeholder="Ad (örn. Sözleşme İnceleyici)" placeholderTextColor="#91A0B4" style={styles.input} />

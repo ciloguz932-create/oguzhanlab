@@ -200,6 +200,11 @@ export async function runAgentLoop(deps: OrchestratorDeps, input: RunInput): Pro
   const hardCap = limits.maxSteps + 3;
   let lastAssistantText = "";
   let forcedFinal = false;
+  // Counts consecutive replies that weren't a valid JSON decision. Weaker models
+  // (e.g. free OpenRouter tiers) often answer a conversational goal in plain prose
+  // instead of the JSON envelope; rather than nagging until the step cap, we nudge
+  // once and then accept the prose as the final answer so the user always gets a reply.
+  let invalidParses = 0;
   for (;;) {
     if (input.signal.aborted) throw new DOMException("Durduruldu.", "AbortError");
     if (steps >= hardCap) {
@@ -225,10 +230,17 @@ export async function runAgentLoop(deps: OrchestratorDeps, input: RunInput): Pro
 
     if (!decision) {
       if (forcedFinal) return { status: "completed", content: raw.trim() || "Yanıt üretilemedi.", transcript: messages, steps, toolCalls };
+      invalidParses += 1;
+      // One gentle nudge to use the JSON envelope; if it still doesn't, take the model's
+      // prose as the final answer instead of looping to the step cap.
+      if (invalidParses >= 2) {
+        return { status: "completed", content: raw.trim() || "Yanıt üretilemedi.", transcript: messages, steps, toolCalls };
+      }
       messages.push({ role: "assistant", content: raw });
-      messages.push({ role: "user", content: "Yanıtın geçerli bir JSON kararı değildi. Sözleşmeye tam uyarak yalnızca tek bir JSON nesnesi ver." });
+      messages.push({ role: "user", content: "Bir araç gerekiyorsa {\"action\":\"tool\",\"tool\":\"<id>\",\"args\":{...}}, gerekmiyorsa {\"action\":\"final\",\"content\":\"<yanıt>\"} biçiminde YALNIZCA tek bir JSON nesnesi ver." });
       continue;
     }
+    invalidParses = 0;
 
     messages.push({ role: "assistant", content: JSON.stringify(decision) });
 

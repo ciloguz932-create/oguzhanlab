@@ -2,6 +2,33 @@ import { AgentError, httpError } from "./errors";
 import { safeErrorMessage } from "./security";
 import type { ProviderAdapter, ProviderId, ProviderMessage, ProviderModel, ProviderResponse, ProviderUsage } from "./types";
 
+// Hard ceiling on any single provider HTTP request so a stalled connection can never
+// leave a run stuck "running" forever. The timer is cleared as soon as the response
+// headers arrive, so it bounds time-to-first-byte without cutting off a long stream body.
+const REQUEST_TIMEOUT_MS = 90_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit = {}): Promise<Response> {
+  const external = init.signal ?? undefined;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, REQUEST_TIMEOUT_MS);
+  const forward = () => controller.abort();
+  if (external) {
+    if (external.aborted) controller.abort();
+    else external.addEventListener("abort", forward, { once: true });
+  }
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err) {
+    if (timedOut) throw new AgentError("Model zaman aşımına uğradı (yanıt gelmedi). Tekrar deneyin ya da Sağlayıcılar'dan daha hızlı bir model seçin.", "timeout");
+    if (external?.aborted) throw new DOMException("Aborted", "AbortError");
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    external?.removeEventListener("abort", forward);
+  }
+}
+
 const OPENAI_MODELS: ProviderModel[] = [
   { id: "gpt-4o-mini", label: "GPT-4o mini", capabilities: ["chat", "streaming", "tools"] },
   { id: "gpt-4.1-mini", label: "GPT-4.1 mini", capabilities: ["chat", "streaming", "tools"] },
@@ -71,8 +98,19 @@ class OpenAiCompatibleAdapter implements ProviderAdapter {
     return this.keyMatcher(key.trim());
   }
 
+  // OpenRouter recommends HTTP-Referer + X-Title for attribution and reliable routing;
+  // harmless for plain OpenAI. Content-Type is added by callers that send a body.
+  private authHeaders(key: string): Record<string, string> {
+    const base: Record<string, string> = { Authorization: `Bearer ${key}` };
+    if (this.baseUrl.includes("openrouter.ai")) {
+      base["HTTP-Referer"] = "https://oguzhanlab.app";
+      base["X-Title"] = "OguzhanLab Agent";
+    }
+    return base;
+  }
+
   async listModels(key: string): Promise<ProviderModel[]> {
-    const response = await fetch(`${this.baseUrl}/models`, { headers: { Authorization: `Bearer ${key}` } });
+    const response = await fetchWithTimeout(`${this.baseUrl}/models`, { headers: this.authHeaders(key) });
     if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { data?: Array<{ id: string }> };
     const models = (body.data ?? []).slice(0, 80).map((item) => ({ id: item.id, label: item.id, capabilities: ["chat", "streaming", "tools"] as ProviderModel["capabilities"] }));
@@ -89,10 +127,10 @@ class OpenAiCompatibleAdapter implements ProviderAdapter {
   }
 
   async generate(input: { key: string; model: string; messages: ProviderMessage[]; signal?: AbortSignal }): Promise<ProviderResponse> {
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       signal: input.signal,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${input.key}` },
+      headers: { "Content-Type": "application/json", ...this.authHeaders(input.key) },
       body: JSON.stringify({ model: input.model, messages: input.messages, temperature: 0.2 }),
     });
     if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
@@ -104,10 +142,10 @@ class OpenAiCompatibleAdapter implements ProviderAdapter {
   }
 
   async stream(input: { key: string; model: string; messages: ProviderMessage[]; onDelta: (delta: string) => void; signal?: AbortSignal }): Promise<ProviderUsage | undefined> {
-    const response = await fetch(`${this.baseUrl}/chat/completions`, {
+    const response = await fetchWithTimeout(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       signal: input.signal,
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${input.key}` },
+      headers: { "Content-Type": "application/json", ...this.authHeaders(input.key) },
       body: JSON.stringify({ model: input.model, messages: input.messages, temperature: 0.2, stream: true, stream_options: { include_usage: true } }),
     });
     if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
@@ -131,7 +169,7 @@ class AnthropicAdapter implements ProviderAdapter {
   }
 
   async listModels(key: string): Promise<ProviderModel[]> {
-    const response = await fetch("https://api.anthropic.com/v1/models?limit=100", { headers: this.headers(key) });
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/models?limit=100", { headers: this.headers(key) });
     if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { data?: Array<{ id: string; display_name?: string }> };
     const models = (body.data ?? []).map((item) => ({ id: item.id, label: item.display_name ?? item.id, capabilities: ["chat", "streaming"] as ProviderModel["capabilities"] }));
@@ -148,7 +186,7 @@ class AnthropicAdapter implements ProviderAdapter {
 
   async generate(input: { key: string; model: string; messages: ProviderMessage[]; signal?: AbortSignal }): Promise<ProviderResponse> {
     const { system, rest } = splitSystem(input.messages);
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       signal: input.signal,
       headers: this.headers(input.key),
@@ -164,7 +202,7 @@ class AnthropicAdapter implements ProviderAdapter {
 
   async stream(input: { key: string; model: string; messages: ProviderMessage[]; onDelta: (delta: string) => void; signal?: AbortSignal }): Promise<ProviderUsage | undefined> {
     const { system, rest } = splitSystem(input.messages);
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
       method: "POST",
       signal: input.signal,
       headers: this.headers(input.key),
@@ -206,7 +244,7 @@ class GeminiAdapter implements ProviderAdapter {
   }
 
   async listModels(key: string): Promise<ProviderModel[]> {
-    const response = await fetch(`${this.base}/models`, { headers: this.headers(key) });
+    const response = await fetchWithTimeout(`${this.base}/models`, { headers: this.headers(key) });
     if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }> };
     const models = (body.models ?? [])
@@ -235,7 +273,7 @@ class GeminiAdapter implements ProviderAdapter {
   }
 
   async generate(input: { key: string; model: string; messages: ProviderMessage[]; signal?: AbortSignal }): Promise<ProviderResponse> {
-    const response = await fetch(`${this.base}/models/${encodeURIComponent(input.model)}:generateContent`, {
+    const response = await fetchWithTimeout(`${this.base}/models/${encodeURIComponent(input.model)}:generateContent`, {
       method: "POST",
       signal: input.signal,
       headers: this.headers(input.key),
@@ -251,7 +289,7 @@ class GeminiAdapter implements ProviderAdapter {
   }
 
   async stream(input: { key: string; model: string; messages: ProviderMessage[]; onDelta: (delta: string) => void; signal?: AbortSignal }): Promise<ProviderUsage | undefined> {
-    const response = await fetch(`${this.base}/models/${encodeURIComponent(input.model)}:streamGenerateContent?alt=sse`, {
+    const response = await fetchWithTimeout(`${this.base}/models/${encodeURIComponent(input.model)}:streamGenerateContent?alt=sse`, {
       method: "POST",
       signal: input.signal,
       headers: this.headers(input.key),
