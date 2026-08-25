@@ -14,10 +14,22 @@ Bu belge uygulanmış güvenlik önlemlerini ve bilinen sınırları anlatır. �
 
 - Yalnızca `https:`.
 - URL'de kullanıcı adı/parola yasak.
-- `localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, `169.254.169.254`, `*.local` yasak.
-- Özel IP blokları (`10.`, `192.168.`, `172.16–31.`) yasak.
+- `localhost`, `127.0.0.1`, `0.0.0.0`, `::1`, `::`, `169.254.169.254`, `metadata.google.internal`, `*.local`, `*.internal` yasak.
+- Özel IPv4 blokları (`10.`, `192.168.`, `172.16–31.`), loopback `127.`, link-local `169.254.` ve **CGNAT `100.64/10`** yasak.
+- IPv6 unique-local (`fc00::/7`) ve link-local (`fe80::/10`) yasak; **IPv4-eşlemeli IPv6** (`::ffff:…`, nokta veya hex biçimi) reddedilir.
 
-MCP sunucusu artık **eklenirken** doğrulanır (yalnızca keşifte değil).
+MCP sunucusu **eklenirken** doğrulanır (yalnızca keşifte değil).
+
+## MCP keşif ve yaşam döngüsü sertleştirmesi
+
+- `tools/list` yanıtı güvenilmeyen içeriktir: araç adları güvenli tanımlayıcıya zorlanır (`isValidMcpToolName`), yinelenenler tekilleştirilir, sunucu başına 100 araçla sınırlanır, yanıt gövdesi 1 MB ile bağlanır, geçersiz JSON reddedilir (fail-closed).
+- Devre dışı veya kaldırılmış bir sunucunun araçları katalogda görünmez ve çağrılamaz; yeniden keşif eski araç id'lerini registry'den düşürür (`replaceMcpServerTools`). Ayrıntı: `MCP.md`.
+
+## Yetenek (skill) manifest güvenliği
+
+- Kullanıcı tanımlı yetenek **yalnızca talimat metnidir** — kod taşımaz ve çalıştırılmaz.
+- `validateSkillInput` zorunlu alanları ve boyut sınırlarını fail-closed doğrular (ad ≤ 80, açıklama ≤ 300, talimat ≤ 8000, ≤ 24 tetikleyici/araç). `makeCustomSkill` ayrıca savunma amaçlı sınırlara **kırpar** ve `version`/`source: "user"`/`installedAt` damgalar.
+- Yetenek talimatları system policy'yi değiştiremez, izinleri sessizce veremez, kimlik bilgisi açığa çıkaramaz; göreve uygun uzmanlık talimatı olarak, güvenilmeyen içerik sınırında enjekte edilir.
 
 ## Prompt injection ve tool poisoning
 

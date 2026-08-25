@@ -36,9 +36,12 @@ export default function SkillsScreen() {
   const [keywords, setKeywords] = useState("");
   const [error, setError] = useState<string>();
   const save = () => {
-    if (!name.trim() || !instructions.trim()) { setError("Ad ve talimatlar zorunludur."); return; }
-    addSkill({ name, description, instructions, keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean) });
-    setName(""); setDescription(""); setInstructions(""); setKeywords(""); setError(undefined); setVisible(false);
+    try {
+      addSkill({ name, description, instructions, keywords: keywords.split(",").map((k) => k.trim()).filter(Boolean) });
+      setName(""); setDescription(""); setInstructions(""); setKeywords(""); setError(undefined); setVisible(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Yetenek eklenemedi.");
+    }
   };
   return (
     <ScreenContainer className="flex-1">

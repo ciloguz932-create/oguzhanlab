@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { AppState as RNAppState } from "react-native";
 
 import { ArtifactStore } from "./artifacts";
-import { withRetry } from "./errors";
+import { AgentError, withRetry } from "./errors";
 import { getIntegrationDef, INTEGRATION_DEFS, integrationForToolId, validateIntegrationToken } from "./integrations";
 import { McpClient } from "./mcp";
 import { selectModel } from "./model-router";
@@ -12,7 +12,7 @@ import { type AgentTool, DEFAULT_LIMITS, type PendingToolCall, type PermissionGa
 import { Planner } from "./planner";
 import { ProviderRegistry } from "./providers";
 import { assertSafeRemoteUrl, makeId, safeErrorMessage } from "./security";
-import { makeCustomSkill, selectSkills, skillModelRequirement } from "./skills";
+import { makeCustomSkill, selectSkills, skillModelRequirement, validateSkillInput } from "./skills";
 import { isSubAgentRole, runSubAgent, SUBAGENT_ROLES } from "./subagents";
 import { queuedRunIds } from "./recovery";
 import { CredentialManager, initialAppState, LocalStateRepository } from "./storage";
@@ -59,6 +59,7 @@ interface AgentContextValue {
   discoverMcpTools: (serverId: string) => Promise<void>;
   invokeMcpTool: (serverId: string, toolName: string, args: Record<string, unknown>) => Promise<ToolResult>;
   removeMcpServer: (serverId: string) => Promise<void>;
+  setMcpServerEnabled: (serverId: string, enabled: boolean) => void;
   setSkillEnabled: (skillId: string, enabled: boolean) => void;
   addSkill: (input: { name: string; description?: string; instructions: string; keywords?: string[]; toolRequirements?: string[]; modelRequirement?: ModelRequirement }) => Skill;
   removeSkill: (skillId: string) => void;
@@ -249,10 +250,14 @@ export function AgentProvider({ children }: PropsWithChildren) {
   const buildCatalog = useCallback((): AgentTool[] => {
     const offline = stateRef.current.offlineMode;
     const activeIntegrations = new Set(stateRef.current.integrations.filter((config) => config.enabled && config.connected).map((config) => config.id));
+    // A discovered MCP tool is only offered while its server still exists and is enabled,
+    // so a disabled or removed server can never leave callable tools in the catalog.
+    const enabledMcpServers = new Set(stateRef.current.mcpServers.filter((server) => server.enabled).map((server) => server.id));
     const networkNative = new Set(["web.search", "web.fetch", "web.extractLinks", "agent.spawn"]);
     return tools.list()
       .filter((tool) => {
         if (offline && (networkNative.has(tool.id) || tool.source === "mcp" || tool.source === "integration")) return false;
+        if (tool.source === "mcp") return enabledMcpServers.has(tool.id.split(".")[1] ?? "");
         if (tool.source === "integration") return activeIntegrations.has(tool.id.split(".")[0] as IntegrationId);
         return true;
       })
@@ -345,6 +350,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
           const toolName = dot >= 0 ? rest.slice(dot + 1) : "";
           const server = stateRef.current.mcpServers.find((item) => item.id === serverId);
           if (!server) return { ok: false, content: "", error: "MCP sunucusu bulunamadı." };
+          if (!server.enabled) return { ok: false, content: "", error: "MCP sunucusu devre dışı." };
           const token = server.credentialId ? await credentials.getCredential(server.credentialId) : null;
           return await mcp.callTool(server, token, toolName, args);
         }
@@ -572,7 +578,9 @@ export function AgentProvider({ children }: PropsWithChildren) {
     try {
       const token = server.credentialId ? await credentials.getCredential(server.credentialId) : null;
       const discoveredTools = await mcp.discoverTools(server, token);
-      discoveredTools.forEach((tool) => tools.register(tool));
+      // Replace (not accumulate) this server's registered tools so a re-discovery that
+      // drops or renames tools cannot leave stale ids behind.
+      tools.replaceMcpServerTools(serverId, discoveredTools);
       apply((current) => ({ ...current, mcpServers: current.mcpServers.map((item) => item.id === serverId ? { ...item, status: "connected", discoveredTools, lastConnectedAt: now(), lastError: undefined } : item) }));
     } catch (error) {
       apply((current) => ({ ...current, mcpServers: current.mcpServers.map((item) => item.id === serverId ? { ...item, status: "error", lastError: mcp.safeError(error) } : item) }));
@@ -592,14 +600,26 @@ export function AgentProvider({ children }: PropsWithChildren) {
   const removeMcpServer = useCallback(async (serverId: string) => {
     const server = stateRef.current.mcpServers.find((item) => item.id === serverId);
     if (server?.credentialId) await credentials.deleteCredential(server.credentialId);
+    // Drop the server's tools from the live registry so they can't be offered/called
+    // after removal, then clear its config and stored credential.
+    tools.replaceMcpServerTools(serverId, []);
     apply((current) => ({ ...current, mcpServers: current.mcpServers.filter((item) => item.id !== serverId) }));
-  }, [apply, credentials]);
+  }, [apply, credentials, tools]);
+
+  // Per-server enable/disable policy. A disabled server's tools are dropped from the
+  // catalog (buildCatalog) and refused at dispatch, without deleting its config/token.
+  const setMcpServerEnabled = useCallback((serverId: string, enabled: boolean) => {
+    apply((current) => ({ ...current, mcpServers: current.mcpServers.map((item) => (item.id === serverId ? { ...item, enabled } : item)) }));
+  }, [apply]);
 
   const setSkillEnabled = useCallback((skillId: string, enabled: boolean) => {
     apply((current) => ({ ...current, skills: current.skills.map((skill) => (skill.id === skillId ? { ...skill, enabled } : skill)) }));
   }, [apply]);
 
   const addSkill = useCallback((input: { name: string; description?: string; instructions: string; keywords?: string[]; toolRequirements?: string[]; modelRequirement?: ModelRequirement }): Skill => {
+    // Reject an invalid/oversized manifest with a clear reason before installing it.
+    const validation = validateSkillInput(input);
+    if (!validation.ok) throw new AgentError(validation.reason, "client", { retryable: false });
     const skill = makeCustomSkill(input);
     apply((current) => ({ ...current, skills: [...current.skills, skill] }));
     return skill;
@@ -645,7 +665,7 @@ export function AgentProvider({ children }: PropsWithChildren) {
   }, [credentials, repository]);
 
   const activeWorkspace = state.workspaces.find((workspace) => workspace.id === state.activeWorkspaceId);
-  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, setModelOverride, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, setNotificationsEnabled, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setModelOverride, setNotificationsEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
+  const value = useMemo<AgentContextValue>(() => ({ state, hydrated, supportedProviders: providers.getSupported(), activeWorkspace, connect, disconnect, setDefaultModel, setModelOverride, createWorkspace, selectWorkspace, submitInstruction, resolvePermission, cancelRun, retryRun, setOfflineMode, setDebugMode, setNotificationsEnabled, addMcpServer, discoverMcpTools, invokeMcpTool, removeMcpServer, setMcpServerEnabled, setSkillEnabled, addSkill, removeSkill, connectIntegration, disconnectIntegration, setIntegrationEnabled, readArtifact: (artifact) => artifacts.read(artifact), clearLocalData }), [activeWorkspace, addMcpServer, addSkill, artifacts, cancelRun, clearLocalData, connect, connectIntegration, createWorkspace, disconnect, disconnectIntegration, discoverMcpTools, hydrated, invokeMcpTool, providers, removeMcpServer, setMcpServerEnabled, removeSkill, resolvePermission, retryRun, selectWorkspace, setDebugMode, setDefaultModel, setIntegrationEnabled, setModelOverride, setNotificationsEnabled, setOfflineMode, setSkillEnabled, state, submitInstruction]);
   return <AgentContext.Provider value={value}>{children}</AgentContext.Provider>;
 }
 

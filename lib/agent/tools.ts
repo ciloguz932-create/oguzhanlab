@@ -19,6 +19,23 @@ export class ToolRegistry {
     this.tools.set(tool.id, tool);
   }
 
+  unregister(id: string): void {
+    this.tools.delete(id);
+  }
+
+  /**
+   * Replaces all tools registered for one MCP server with a fresh set. Removing a
+   * server (empty `tools`) or re-discovering drops the previous ids, so a removed or
+   * changed server can never leave stale, still-callable tools in the registry.
+   */
+  replaceMcpServerTools(serverId: string, tools: ToolDefinition[]): void {
+    const prefix = `mcp.${serverId}.`;
+    for (const id of [...this.tools.keys()]) {
+      if (id.startsWith(prefix)) this.tools.delete(id);
+    }
+    for (const tool of tools) this.tools.set(tool.id, tool);
+  }
+
   get(id: string): ToolDefinition | undefined {
     return this.tools.get(id);
   }

@@ -4,6 +4,20 @@ import type { McpServerConfig, ToolDefinition, ToolResult } from "./types";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
+// Fail-closed limits applied to everything a (untrusted) MCP server returns.
+const MAX_MCP_BODY_BYTES = 1_000_000; // reject oversized JSON-RPC / SSE bodies
+const MAX_DISCOVERED_TOOLS = 100; // cap tool-list size from one server
+const MAX_TOOL_NAME = 64;
+const MAX_TOOL_DESC = 500;
+// A server-side tool name must be a bounded, safe identifier. Anything else is
+// dropped during discovery so it can never become an addressable tool id.
+const SAFE_TOOL_NAME = /^[A-Za-z0-9._-]{1,64}$/;
+
+/** True when a discovered tool name is a safe, bounded identifier. */
+export function isValidMcpToolName(name: unknown): name is string {
+  return typeof name === "string" && name.length > 0 && name.length <= MAX_TOOL_NAME && SAFE_TOOL_NAME.test(name);
+}
+
 interface JsonRpcResult {
   tools?: Array<{ name: string; description?: string; inputSchema?: Record<string, unknown> }>;
   content?: Array<{ type: string; text?: string }>;
@@ -42,10 +56,13 @@ export class McpClient {
   private async parseRpc(response: Response): Promise<JsonRpcResponse> {
     if (response.status === 401) throw new AgentError("MCP sunucusu yetkilendirme istiyor. Token ekleyin veya OAuth bağlantısını başlatın.", "auth", { status: 401, retryable: false });
     if (!response.ok) throw new AgentError("MCP isteği başarısız oldu.", response.status >= 500 ? "server" : "client", { status: response.status });
+    // Fail closed on an oversized response before reading the whole body into memory.
+    const declaredLength = Number(response.headers.get("content-length") ?? "0");
+    if (declaredLength > MAX_MCP_BODY_BYTES) throw new AgentError("MCP yanıtı çok büyük.", "server", { retryable: false });
     const contentType = response.headers.get("content-type") ?? "";
     if (contentType.includes("text/event-stream")) {
       // Read the SSE body and return the last JSON-RPC response frame.
-      const text = await response.text();
+      const text = (await response.text()).slice(0, MAX_MCP_BODY_BYTES);
       let parsed: JsonRpcResponse | undefined;
       for (const line of text.split("\n")) {
         const trimmed = line.trimStart();
@@ -62,7 +79,12 @@ export class McpClient {
       if (!parsed) throw new AgentError("MCP akış yanıtı çözümlenemedi.", "server");
       return parsed;
     }
-    return (await response.json()) as JsonRpcResponse;
+    const raw = (await response.text()).slice(0, MAX_MCP_BODY_BYTES);
+    try {
+      return JSON.parse(raw) as JsonRpcResponse;
+    } catch {
+      throw new AgentError("MCP yanıtı geçerli JSON değil.", "server", { retryable: false });
+    }
   }
 
   /** Best-effort initialize handshake; returns a session id header when the server issues one. */
@@ -103,16 +125,29 @@ export class McpClient {
 
   async discoverTools(server: McpServerConfig, token?: string | null): Promise<ToolDefinition[]> {
     const result = await this.call(server, token, "tools/list", {});
-    return (result.tools ?? []).map((tool) => ({
-      id: `mcp.${server.id}.${tool.name}`,
-      title: tool.name,
-      // Tool titles/descriptions are untrusted server content; the runtime never
-      // executes them as instructions. Risk defaults to medium and is gated.
-      description: tool.description ?? "MCP aracı",
-      source: "mcp" as const,
-      risk: "medium" as const,
-      inputSchema: tool.inputSchema ?? {},
-    }));
+    const seen = new Set<string>();
+    const tools: ToolDefinition[] = [];
+    for (const tool of result.tools ?? []) {
+      if (tools.length >= MAX_DISCOVERED_TOOLS) break; // cap list size from one server
+      // Fail closed: skip tools whose name isn't a safe, bounded identifier, and
+      // dedupe within the server so a name can't map to two addressable ids.
+      if (!isValidMcpToolName(tool?.name) || seen.has(tool.name)) continue;
+      seen.add(tool.name);
+      const description = typeof tool.description === "string" ? tool.description.slice(0, MAX_TOOL_DESC) : "MCP aracı";
+      const inputSchema = tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema) ? tool.inputSchema : {};
+      tools.push({
+        // Namespaced id prevents cross-server and native collisions: mcp.<serverId>.<name>.
+        id: `mcp.${server.id}.${tool.name}`,
+        title: tool.name,
+        // Tool titles/descriptions are untrusted server content; the runtime never
+        // executes them as instructions. Risk defaults to medium and is gated.
+        description,
+        source: "mcp" as const,
+        risk: "medium" as const,
+        inputSchema,
+      });
+    }
+    return tools;
   }
 
   /** Invokes a discovered MCP tool. `toolName` is the bare server-side tool name. */
