@@ -17,8 +17,11 @@ Bir **ücretsiz Expo hesabı** gerekir (expo.dev). Ardından bu depoda GitHub'da
 >
 > Depoda hardcode edilmiş hiçbir hesap değeri yoktur; bu üç değer yalnızca CI'da kullanılır. Anahtarın hiçbir zaman koda veya loglara yazılmaz.
 
-## 2) Build başlatma (telefondan bile)
+## 2) Build başlatma
 
+**Otomatik (varsayılan — hiçbir şeye tıklamana gerek yok):** `main` branch'ine kod değişikliği push/merge edildiğinde APK build'i **kendiliğinden** başlar (sadece `.md` dosyası değişiklikleri build'i tetiklemez). Sonucu ayrıca haber alırsın.
+
+**Manuel (istersen):**
 1. GitHub'da bu depo → **Actions** sekmesi.
 2. Soldan **"EAS Android Build"** → sağdan **"Run workflow"**.
 3. Profil: **preview** (kurulabilir APK) — varsayılan. `production` Play Store için AAB üretir (doğrudan kurulmaz).

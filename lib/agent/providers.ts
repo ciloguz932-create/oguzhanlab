@@ -73,7 +73,7 @@ class OpenAiCompatibleAdapter implements ProviderAdapter {
 
   async listModels(key: string): Promise<ProviderModel[]> {
     const response = await fetch(`${this.baseUrl}/models`, { headers: { Authorization: `Bearer ${key}` } });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { data?: Array<{ id: string }> };
     const models = (body.data ?? []).slice(0, 80).map((item) => ({ id: item.id, label: item.id, capabilities: ["chat", "streaming", "tools"] as ProviderModel["capabilities"] }));
     return models.length ? models : OPENAI_MODELS;
@@ -95,7 +95,7 @@ class OpenAiCompatibleAdapter implements ProviderAdapter {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${input.key}` },
       body: JSON.stringify({ model: input.model, messages: input.messages, temperature: 0.2 }),
     });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
     return {
       content: body.choices?.[0]?.message?.content ?? "",
@@ -110,7 +110,7 @@ class OpenAiCompatibleAdapter implements ProviderAdapter {
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${input.key}` },
       body: JSON.stringify({ model: input.model, messages: input.messages, temperature: 0.2, stream: true, stream_options: { include_usage: true } }),
     });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     return parseOpenAiStream(response, input.onDelta);
   }
 }
@@ -132,7 +132,7 @@ class AnthropicAdapter implements ProviderAdapter {
 
   async listModels(key: string): Promise<ProviderModel[]> {
     const response = await fetch("https://api.anthropic.com/v1/models?limit=100", { headers: this.headers(key) });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { data?: Array<{ id: string; display_name?: string }> };
     const models = (body.data ?? []).map((item) => ({ id: item.id, label: item.display_name ?? item.id, capabilities: ["chat", "streaming"] as ProviderModel["capabilities"] }));
     return models.length ? models : ANTHROPIC_MODELS;
@@ -154,7 +154,7 @@ class AnthropicAdapter implements ProviderAdapter {
       headers: this.headers(input.key),
       body: JSON.stringify({ model: input.model, max_tokens: 3000, system, messages: rest }),
     });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { content?: Array<{ type: string; text?: string }>; usage?: { input_tokens?: number; output_tokens?: number } };
     return {
       content: body.content?.filter((item) => item.type === "text").map((item) => item.text ?? "").join("") ?? "",
@@ -170,7 +170,7 @@ class AnthropicAdapter implements ProviderAdapter {
       headers: this.headers(input.key),
       body: JSON.stringify({ model: input.model, max_tokens: 3000, system, messages: rest, stream: true }),
     });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     let inputTokens: number | undefined;
     let outputTokens: number | undefined;
     await readSse(response, (payload) => {
@@ -207,7 +207,7 @@ class GeminiAdapter implements ProviderAdapter {
 
   async listModels(key: string): Promise<ProviderModel[]> {
     const response = await fetch(`${this.base}/models`, { headers: this.headers(key) });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as { models?: Array<{ name: string; displayName?: string; supportedGenerationMethods?: string[] }> };
     const models = (body.models ?? [])
       .filter((item) => item.supportedGenerationMethods?.includes("generateContent"))
@@ -241,7 +241,7 @@ class GeminiAdapter implements ProviderAdapter {
       headers: this.headers(input.key),
       body: JSON.stringify(this.buildBody(input.messages)),
     });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     const body = (await response.json()) as {
       candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
       usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
@@ -257,7 +257,7 @@ class GeminiAdapter implements ProviderAdapter {
       headers: this.headers(input.key),
       body: JSON.stringify(this.buildBody(input.messages)),
     });
-    if (!response.ok) throw httpError(response.status);
+    if (!response.ok) throw httpError(response.status, await response.text().catch(() => undefined));
     let usage: ProviderUsage | undefined;
     await readSse(response, (payload) => {
       try {
