@@ -78,6 +78,22 @@ describe("error classification and retry", () => {
     expect(httpError(503).kind).toBe("server");
   });
 
+  it("distinguishes quota exhaustion from a transient rate limit on 429", () => {
+    // Plain 429 with no body detail (or one that doesn't mention billing/credits):
+    // a transient too-many-requests limit, safe to retry.
+    expect(httpError(429).kind).toBe("rate_limit");
+    expect(httpError(429, "too many requests, slow down").kind).toBe("rate_limit");
+    // 429 whose body signals the account is out of credits: not retryable, and the
+    // message must tell the user retrying won't help.
+    const quota = httpError(429, JSON.stringify({ error: { code: "insufficient_quota", message: "You exceeded your current quota" } }));
+    expect(quota.kind).toBe("quota");
+    expect(quota.retryable).toBe(false);
+    expect(quota.message).toMatch(/kredi|kota/i);
+    // 402 Payment Required is always quota exhaustion regardless of body.
+    expect(httpError(402).kind).toBe("quota");
+    expect(httpError(402).retryable).toBe(false);
+  });
+
   it("classifies fetch network failures and aborts", () => {
     expect(classifyError(new TypeError("Failed to fetch")).kind).toBe("network");
     expect(classifyError(new TypeError("Failed to fetch")).retryable).toBe(true);
