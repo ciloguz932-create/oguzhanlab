@@ -59,6 +59,9 @@ const config: ExpoConfig = {
   icon: "./assets/images/icon.png",
   scheme: env.scheme,
   userInterfaceStyle: "dark",
+  // Dark window background so any layout gap shows the app's dark ground, never a
+  // white system default (root cause of the white-half rendering on Android).
+  backgroundColor: "#0A0F1A",
   newArchEnabled: true,
   ios: {
     supportsTablet: true,
@@ -68,6 +71,7 @@ const config: ExpoConfig = {
       }
   },
   android: {
+    backgroundColor: "#0A0F1A",
     adaptiveIcon: {
       backgroundColor: "#10243E",
       foregroundImage: "./assets/images/android-icon-foreground.png",
