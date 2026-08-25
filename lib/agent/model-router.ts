@@ -32,6 +32,23 @@ export function classifyModel(model: ProviderModel): ModelTrait {
 }
 
 /**
+ * Chooses a sensible default model for a freshly connected provider. For OpenRouter we
+ * strongly prefer a `:free` model (so a key with no credits works out of the box), and a
+ * fast tier within that; for other providers we prefer a fast/cheap model. Falls back to
+ * the first model. This is the model a plain conversational goal (no skill) will use.
+ */
+export function pickDefaultModel(providerId: string, models: ProviderModel[]): string {
+  if (!models.length) return "";
+  const isFast = (m: ProviderModel) => FAST_HINTS.test(`${m.id} ${m.label}`.toLowerCase());
+  if (providerId === "openrouter") {
+    const free = models.filter((m) => /:free\b/i.test(m.id));
+    const pool = free.length ? free : models;
+    return (pool.find(isFast) ?? pool[0]).id;
+  }
+  return (models.find(isFast) ?? models[0]).id;
+}
+
+/**
  * Selects the best available model id for a task requirement from a connection's
  * models. A user `override` for this requirement wins whenever it names a model the
  * connection actually has; otherwise capability heuristics choose, falling back to
