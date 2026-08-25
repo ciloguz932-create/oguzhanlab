@@ -2,7 +2,7 @@ import MaterialIcons from "@expo/vector-icons/MaterialIcons";
 import { router } from "@/lib/navigator";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { EmptyState, palette, PrimaryButton, SectionHeading, StatusPill } from "@/components/agent-ui";
+import { EmptyState, palette, PrimaryButton, SectionHeading, StatusPill, useContentWidthStyle } from "@/components/agent-ui";
 import { ScreenContainer } from "@/components/screen-container";
 import { useAgent } from "@/lib/agent/agent-provider";
 import type { AgentRun } from "@/lib/agent/types";
@@ -11,8 +11,9 @@ function runTone(status: AgentRun["status"]): "success" | "warning" | "error" | 
 
 export default function HomeScreen() {
   const { state, activeWorkspace } = useAgent();
+  const contentWidth = useContentWidthStyle();
   const runs = state.runs.filter((run) => run.workspaceId === activeWorkspace?.id).slice().reverse();
-  return <ScreenContainer className="flex-1"><FlatList data={runs} keyExtractor={(item) => item.id} contentContainerStyle={styles.content} ListHeaderComponent={<View style={styles.header}>
+  return <ScreenContainer className="flex-1"><FlatList data={runs} keyExtractor={(item) => item.id} contentContainerStyle={[styles.content, contentWidth]} ListHeaderComponent={<View style={styles.header}>
     <View style={styles.topRow}><View><Text style={styles.eyebrow}>AKTİF WORKSPACE</Text><Text style={styles.title}>{activeWorkspace?.name ?? "Workspace seçin"}</Text></View><Pressable accessibilityLabel="Ayarlar" onPress={() => router.push("/settings")} style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}><MaterialIcons name="tune" size={22} color={palette.navy} /></Pressable></View>
     <View style={styles.hero}><View style={styles.heroIcon}><MaterialIcons name="hub" size={28} color="#FFFFFF" /></View><View style={styles.heroText}><Text style={styles.heroTitle}>Bir işi verin, agent düzenlesin.</Text><Text style={styles.heroSub}>{state.connections.length ? "Plan, araç, artifact ve izin akışı tek yerde." : "Başlamak için AI sağlayıcınızı bağlayın."}</Text></View></View>
     {state.connections.length ? <PrimaryButton label="Yeni agent görevi" icon="add" onPress={() => router.push("/agent")} /> : <PrimaryButton label="AI sağlayıcısı bağla" icon="key" onPress={() => router.push("/connect")} />}
