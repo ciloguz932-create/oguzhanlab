@@ -1,4 +1,4 @@
-import { View, type ViewProps } from "react-native";
+import { StyleSheet, View, type ViewProps } from "react-native";
 import { SafeAreaView, type Edge } from "react-native-safe-area-context";
 
 import { palette } from "@/components/agent-ui";
@@ -48,19 +48,21 @@ export function ScreenContainer({
   style,
   ...props
 }: ScreenContainerProps) {
+  // Layout fill is expressed with explicit `flex: 1` styles, NOT the nativewind
+  // `flex-1` class: on the native (Android) build that class does not reliably
+  // apply, which left the dark background covering only the content and the rest
+  // of the screen white. Explicit styles guarantee every layer fills the screen.
   return (
     <View
-      className={cn("flex-1", containerClassName)}
-      style={{ backgroundColor: palette.background }}
+      className={cn(containerClassName)}
+      style={[styles.fill, { backgroundColor: palette.background }]}
       {...props}
     >
-      <SafeAreaView
-        edges={edges}
-        className={cn("flex-1", safeAreaClassName)}
-        style={style}
-      >
-        <View className={cn("flex-1", className)}>{children}</View>
+      <SafeAreaView edges={edges} className={cn(safeAreaClassName)} style={[styles.fill, style]}>
+        <View className={cn(className)} style={styles.fill}>{children}</View>
       </SafeAreaView>
     </View>
   );
 }
+
+const styles = StyleSheet.create({ fill: { flex: 1 } });
