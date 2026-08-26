@@ -8,7 +8,7 @@ import { AgentError, withRetry } from "./errors";
 import { failureFromError } from "./failures";
 import { getIntegrationDef, INTEGRATION_DEFS, integrationForToolId, validateIntegrationToken } from "./integrations";
 import { McpClient } from "./mcp";
-import { pickDefaultModel, selectModel } from "./model-router";
+import { pickDefaultModel, preferFreeForOpenRouter, selectModel } from "./model-router";
 import { type AgentTool, DEFAULT_LIMITS, type PendingToolCall, type PermissionGate, runAgentLoop } from "./orchestrator";
 import { Planner } from "./planner";
 import { ProviderRegistry } from "./providers";
@@ -300,7 +300,11 @@ export function AgentProvider({ children }: PropsWithChildren) {
     // goal (no skill) uses the connection's chosen default model, which is fast/available
     // rather than an expensive reasoning model the key may not be able to run.
     const requirement: ModelRequirement | undefined = skillModelRequirement(activeSkills);
-    const model = selectModel(connection.models, requirement, connection.defaultModel, requirement ? connection.modelOverrides?.[requirement] : undefined);
+    const override = requirement ? connection.modelOverrides?.[requirement] : undefined;
+    const resolved = selectModel(connection.models, requirement, connection.defaultModel, override);
+    // OpenRouter safety net: unless the user pinned a specific model, prefer a ":free"
+    // model so a credit-less key works out of the box (avoids silent stalls on paid models).
+    const model = override ? resolved : preferFreeForOpenRouter(connection.provider, connection.models, resolved, requirement);
     if (model !== run.selectedModel) updateRun(runId, { selectedModel: model });
 
     // One reasoning turn: retried fully because a non-streaming model call has no side effects.
@@ -440,6 +444,29 @@ export function AgentProvider({ children }: PropsWithChildren) {
     try {
       const resume = run.transcript?.length ? { transcript: run.transcript, approved: run.pendingToolCall, steps: run.steps ?? 0, toolCalls: run.toolCalls ?? 0 } : undefined;
       if (resume) updateRun(runId, { pendingToolCall: undefined });
+
+      // Fast path: a short conversational goal with no active skill doesn't need the
+      // tool/plan/JSON machinery. Answer it as a plain chat so any model (including weak
+      // free tiers) replies quickly and reliably instead of choking on the ReAct contract.
+      const AGENTIC_HINT = /(araştır|incele|oluştur|\byaz\b|\byap\b|plan|dosya|\.md|markdown|liste|analiz|hesapla|indir|github|e-?posta|\bmail\b|kod|derle|rapor|özet|çıkar|topla|karşılaştır|müfredat|yol haritası|roadmap|https?:)/i;
+      const isSimpleChat = !resume && activeSkills.length === 0 && run.instruction.trim().length <= 240 && !AGENTIC_HINT.test(run.instruction);
+      if (isSimpleChat) {
+        const reply = await callModel([
+          { role: "system", content: "Sen OguzhanLab içinde yardımcı bir asistansın. Kullanıcıya doğrudan, kısa ve net Türkçe yanıt ver. Araç veya JSON kullanma; yalnızca sohbet et." },
+          { role: "user", content: run.instruction },
+        ], controller.signal);
+        addMessage({ workspaceId, runId, role: "agent", content: reply.trim() || "Yanıt üretilemedi.", status: "complete" });
+        if (understand) updateTask(runId, understand.id, { status: "completed", output: "Sohbet yanıtı." });
+        if (act) updateTask(runId, act.id, { status: "completed", output: "Doğrudan yanıt." });
+        const chatProduce = outlineTask(runId, "generation");
+        if (chatProduce) updateTask(runId, chatProduce.id, { status: "completed", output: reply.slice(0, 400) });
+        updateRun(runId, { transcript: undefined });
+        setRunStatus(runId, "completed");
+        addEvent({ runId, type: "VerificationCompleted", summary: "Sohbet yanıtı tamamlandı.", level: "success" });
+        void notify("Yanıt hazır", run.instruction);
+        return;
+      }
+
       const skills = activeSkills.map((skill) => ({ name: skill.name, instructions: skill.instructions }));
       const outcome = await runAgentLoop(deps, { goal: run.instruction, tools: buildCatalog(), skills, limits: DEFAULT_LIMITS, signal: controller.signal, resume });
 
