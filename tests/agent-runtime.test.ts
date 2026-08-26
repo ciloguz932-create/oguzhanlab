@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AgentError, backoffDelayMs, classifyError, httpError, sleep, withRetry } from "../lib/agent/errors";
-import { classifyModel, pickDefaultModel, selectModel } from "../lib/agent/model-router";
+import { classifyModel, pickDefaultModel, preferFreeForOpenRouter, selectModel } from "../lib/agent/model-router";
 import { McpClient } from "../lib/agent/mcp";
 import { ProviderRegistry } from "../lib/agent/providers";
 import { queuedRunIds, recoverInterruptedRuns } from "../lib/agent/recovery";
@@ -55,6 +55,18 @@ describe("model router", () => {
     // Other providers prefer a fast/cheap model.
     expect(pickDefaultModel("openai", [model("gpt-4.1"), model("gpt-4o-mini")])).toBe("gpt-4o-mini");
     expect(pickDefaultModel("openai", [])).toBe("");
+  });
+
+  it("swaps a paid OpenRouter model for a free one (credit-less key safety net)", () => {
+    const models = [model("anthropic/claude-opus"), model("meta-llama/llama-3.1-8b-instruct:free")];
+    // Resolved a paid model → swap to the free one.
+    expect(preferFreeForOpenRouter("openrouter", models, "anthropic/claude-opus")).toBe("meta-llama/llama-3.1-8b-instruct:free");
+    // Already free → unchanged.
+    expect(preferFreeForOpenRouter("openrouter", models, "meta-llama/llama-3.1-8b-instruct:free")).toBe("meta-llama/llama-3.1-8b-instruct:free");
+    // No free models → leave as-is.
+    expect(preferFreeForOpenRouter("openrouter", [model("anthropic/claude-opus")], "anthropic/claude-opus")).toBe("anthropic/claude-opus");
+    // Non-OpenRouter → never swapped.
+    expect(preferFreeForOpenRouter("openai", models, "anthropic/claude-opus")).toBe("anthropic/claude-opus");
   });
 });
 

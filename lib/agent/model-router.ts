@@ -49,6 +49,25 @@ export function pickDefaultModel(providerId: string, models: ProviderModel[]): s
 }
 
 /**
+ * OpenRouter safety net: a credit-less OpenRouter key can only run models whose id ends
+ * with ":free". If the resolved model isn't free but free models exist, swap to the best
+ * free one (matching the requirement when possible, else fast) so runs don't silently
+ * fail/stall on a paid model the key can't use. A no-op when `resolved` is already free,
+ * when there are no free models, or for non-OpenRouter providers.
+ */
+export function preferFreeForOpenRouter(providerId: string, models: ProviderModel[], resolved: string, requirement?: ModelRequirement): string {
+  if (providerId !== "openrouter" || /:free\b/i.test(resolved)) return resolved;
+  const free = models.filter((m) => /:free\b/i.test(m.id));
+  if (!free.length) return resolved;
+  if (requirement) {
+    const match = free.find((m) => classifyModel(m)[requirement]);
+    if (match) return match.id;
+  }
+  const isFast = (m: ProviderModel) => FAST_HINTS.test(`${m.id} ${m.label}`.toLowerCase());
+  return (free.find(isFast) ?? free[0]).id;
+}
+
+/**
  * Selects the best available model id for a task requirement from a connection's
  * models. A user `override` for this requirement wins whenever it names a model the
  * connection actually has; otherwise capability heuristics choose, falling back to
